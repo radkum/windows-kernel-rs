@@ -51,13 +51,21 @@ fn internal_link_search() {
     };
 
     let lib_dir = km_dir.join(arch);
-    println!("cargo:rustc-link-search=native={}", lib_dir.to_str().unwrap());
+    println!(
+        "cargo:rustc-link-search=native={}",
+        lib_dir.to_str().unwrap()
+    );
 }
 
 fn extra_link_search() {}
 
 fn main() {
-    if var(format!("CARGO_FEATURE_{}", "extra_link_search".to_uppercase())).is_ok() {
+    if var(format!(
+        "CARGO_FEATURE_{}",
+        "extra_link_search".to_uppercase()
+    ))
+    .is_ok()
+    {
         extra_link_search()
     } else {
         internal_link_search()

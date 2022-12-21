@@ -38,3 +38,9 @@ script = [
 
 [tasks.all]
 dependencies = ["build-driver", "rename", "sign", "copy"]
+
+[tasks.rebuild]
+script = [
+    "cargo make clean",
+    "cargo make all"
+]

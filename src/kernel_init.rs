@@ -3,7 +3,6 @@
 use alloc::string::ToString;
 use core::panic::PanicInfo;
 use winapi::{
-    km::wdm::DRIVER_OBJECT,
     shared::{basetsd::ULONG_PTR, minwindef::ULONG, ntdef::VOID},
 };
 
@@ -17,7 +16,9 @@ static _FLTUSED: i32 = 0;
 
 #[cfg(not(test))]
 #[no_mangle]
-pub extern "system" fn __CxxFrameHandler3(_: *mut u8, _: *mut u8, _: *mut u8, _: *mut u8) -> i32 { unimplemented!() }
+pub extern "system" fn __CxxFrameHandler3(_: *mut u8, _: *mut u8, _: *mut u8, _: *mut u8) -> i32 {
+    unimplemented!()
+}
 
 /// Base code for Device Control
 ///
