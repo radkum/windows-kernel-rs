@@ -1,10 +1,9 @@
 /// copied from Matthias: https://github.com/not-matthias/kernel-driver-with-rust/blob/master/build.rs
 use failure::{format_err, Error};
-use std::{
-    env::var,
-    path::{Path, PathBuf},
-};
-use winreg::{enums::*, RegKey};
+use std::env::var;
+use std::path::{Path, PathBuf};
+use winreg::enums::*;
+use winreg::RegKey;
 
 /// Returns the path to the `Windows Kits` directory. It's by default at
 /// `C:\Program Files (x86)\Windows Kits\10`.

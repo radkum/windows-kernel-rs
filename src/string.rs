@@ -24,7 +24,9 @@ pub struct AnsiString {
 }
 
 impl AnsiString {
-    fn create(buffer: &[u8]) -> Self { AnsiString::from(buffer) }
+    fn create(buffer: &[u8]) -> Self {
+        AnsiString::from(buffer)
+    }
 }
 
 impl<'a> From<&'a [u8]> for AnsiString {
@@ -32,7 +34,7 @@ impl<'a> From<&'a [u8]> for AnsiString {
         let mut str = AnsiString::default();
 
         let mut buffer = buffer.to_vec();
-        if *buffer.last().unwrap() == 0 {
+        if *buffer.last().unwrap() != 0 {
             //let mut buffer = buffer.to_vec();
             buffer.push(0);
         }
@@ -73,7 +75,11 @@ impl UnicodeString {
     }
 
     pub fn native(&self) -> UNICODE_STRING {
-        UNICODE_STRING {Length: self.len, MaximumLength: self.max_len, Buffer: self.ptr as *mut u16}
+        UNICODE_STRING {
+            Length: self.len,
+            MaximumLength: self.max_len,
+            Buffer: self.ptr as *mut u16,
+        }
     }
 
     pub fn native_ptr(&self) -> *const UNICODE_STRING {
@@ -94,7 +100,8 @@ impl<'a> From<&str> for UnicodeString {
 }
 
 impl<'a> From<&'a [u16]> for UnicodeString {
-    fn from(buffer: &'a [u16]) -> Self { let mut str = UnicodeString::default();
+    fn from(buffer: &'a [u16]) -> Self {
+        let mut str = UnicodeString::default();
 
         let mut buffer = buffer.to_vec();
         if *buffer.last().unwrap() == 0 {
@@ -104,7 +111,8 @@ impl<'a> From<&'a [u16]> for UnicodeString {
         unsafe {
             RtlCreateUnicodeString(&mut str, buffer.as_ptr());
         }
-        str }
+        str
+    }
 }
 
 impl<'a> From<&AnsiString> for UnicodeString {
@@ -128,7 +136,9 @@ impl Default for UnicodeString {
 }
 
 impl Drop for UnicodeString {
-    fn drop(&mut self) { unsafe { RtlFreeUnicodeString(self) } }
+    fn drop(&mut self) {
+        unsafe { RtlFreeUnicodeString(self) }
+    }
 }
 
 extern "system" {
@@ -150,7 +160,9 @@ extern "system" {
     // &CONST_UNICODE_STRING) -> u32;
     //
     pub fn RtlAnsiStringToUnicodeString(
-        DestinationString: &mut UnicodeString, SourceString: &AnsiString, AllocateDestination: bool,
+        DestinationString: &mut UnicodeString,
+        SourceString: &AnsiString,
+        AllocateDestination: bool,
     ) -> NTSTATUS;
     // pub fn RtlAnsiStringToUnicodeSize(SourceString: &CONST_ANSI_STRING) ->
     // u32;

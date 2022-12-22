@@ -2,9 +2,9 @@
 
 use alloc::string::ToString;
 use core::panic::PanicInfo;
-use winapi::{
-    shared::{basetsd::ULONG_PTR, minwindef::ULONG, ntdef::VOID},
-};
+use winapi::shared::basetsd::ULONG_PTR;
+use winapi::shared::minwindef::ULONG;
+use winapi::shared::ntdef::VOID;
 
 #[cfg(not(test))]
 #[global_allocator]
@@ -29,8 +29,11 @@ const DEVICE_CONTROL_BUGCHECK_CODE: ULONG = 0xDC000000;
 #[cfg_attr(all(target_env = "msvc", feature = "kernel"), link(name = "ntoskrnl"))]
 extern "system" {
     fn KeBugCheckEx(
-        BugCheckCode: ULONG, BugCheckParameter1: ULONG_PTR, BugCheckParameter2: ULONG_PTR,
-        BugCheckParameter3: ULONG_PTR, BugCheckParameter4: ULONG_PTR,
+        BugCheckCode: ULONG,
+        BugCheckParameter1: ULONG_PTR,
+        BugCheckParameter2: ULONG_PTR,
+        BugCheckParameter3: ULONG_PTR,
+        BugCheckParameter4: ULONG_PTR,
     ) -> VOID;
 }
 
