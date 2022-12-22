@@ -53,7 +53,7 @@ pub fn MmGetSystemAddressForMdlSafe(mdl: *mut MDL, priority: ULONG) -> PVOID {
             MmMapLockedPagesSpecifyCache(
                 mdl as PVOID,
                 KPROCESSOR_MODE::KernelMode,
-                1,
+                1, /*MmCached*/
                 null_mut(),
                 0,
                 priority,

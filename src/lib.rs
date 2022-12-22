@@ -7,6 +7,7 @@ extern crate alloc;
 mod cleaner;
 mod constants;
 pub mod include;
+mod io_stack_location_parameters;
 mod kernel_init;
 pub mod log;
 pub mod macros;
@@ -27,6 +28,7 @@ use winapi::shared::ntstatus::{
 };
 
 use crate::include::{MmGetSystemAddressForMdlSafe, MDL};
+use crate::io_stack_location_parameters::Parameters;
 use core::ptr::null_mut;
 use winapi::km::wdm::DEVICE_FLAGS::DO_DIRECT_IO;
 
@@ -42,6 +44,7 @@ pub unsafe extern "system" fn DriverEntry(
     driver.MajorFunction[IRP_MJ::CLOSE as usize] = Some(DispatchCreateClose);
     driver.MajorFunction[IRP_MJ::DEVICE_CONTROL as usize] = Some(DispatchDeviceControl);
     driver.MajorFunction[IRP_MJ::READ as usize] = Some(DispatchRead);
+    driver.MajorFunction[IRP_MJ::WRITE as usize] = Some(DispatchWrite);
 
     #[allow(unused_assignments)]
     let mut status = STATUS_SUCCESS;
@@ -126,16 +129,14 @@ extern "system" fn DispatchDeviceControl(_driver: &mut DEVICE_OBJECT, irp: &mut 
     complete_irp_success(irp)
 }
 
-struct Parameters_Read {
-    len: u32
-}
 extern "system" fn DispatchRead(_driver: &mut DEVICE_OBJECT, irp: &mut IRP) -> NTSTATUS {
     kernel_print::kernel_println!("DispatchRead begin");
 
     unsafe {
         let stack = IoGetCurrentIrpStackLocation(irp);
         //stack->Parameters.Read.Length;
-        let len = (*stack).Parameters.DeviceIoControl().OutputBufferLength;
+        let parameters_read = Parameters::Read(&mut (*stack).Parameters);
+        let len = (*parameters_read).length;
 
         kernel_print::kernel_println!("read len: {}", len);
 
@@ -163,6 +164,17 @@ extern "system" fn DispatchRead(_driver: &mut DEVICE_OBJECT, irp: &mut IRP) -> N
     }
 }
 
+extern "system" fn DispatchWrite(_driver: &mut DEVICE_OBJECT, irp: &mut IRP) -> NTSTATUS {
+    kernel_print::kernel_println!("DispatchWrite begin");
+
+    unsafe {
+        let stack = IoGetCurrentIrpStackLocation(irp);
+        let parameters_write = Parameters::Write(&mut (*stack).Parameters);
+        let len = (*parameters_write).length;
+
+        complete_irp(irp, STATUS_SUCCESS, len as usize)
+    }
+}
 fn complete_irp(irp: &mut IRP, status: NTSTATUS, info: usize) -> NTSTATUS {
     unsafe {
         let s = irp.IoStatus.__bindgen_anon_1.Status_mut();
