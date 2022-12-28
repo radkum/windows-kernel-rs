@@ -1,0 +1,7 @@
+pub const FILE_ANY_ACCESS: u32 = 0u32;
+pub const METHOD_BUFFERED: u32 = 0u32;
+
+pub const MDL_SOURCE_IS_NONPAGED_POOL: u16 = 0x0004;
+pub const MDL_MAPPED_TO_SYSTEM_VA: u16 = 0x0001;
+
+pub const REG_NT_POST_SET_VALUE_KEY: u32 = 16;

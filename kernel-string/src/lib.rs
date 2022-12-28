@@ -1,20 +1,11 @@
+#![no_std]
+
+extern crate alloc;
+
+use alloc::string::String;
+use core::fmt::{Display, Formatter};
+use core::slice;
 use winapi::shared::ntdef::{BOOLEAN, NTSTATUS, UNICODE_STRING};
-
-pub fn create_unicode_string(s: &[u16]) -> UNICODE_STRING {
-    let len = s.len();
-
-    let n = if len > 0 && s[len - 1] == 0 {
-        len - 1
-    } else {
-        len
-    };
-
-    UNICODE_STRING {
-        Length: (n * 2) as u16,
-        MaximumLength: (len * 2) as u16,
-        Buffer: s.as_ptr() as _,
-    }
-}
 
 #[repr(C)]
 pub struct AnsiString {
@@ -74,7 +65,7 @@ impl UnicodeString {
         UnicodeString::from(buffer.as_bytes())
     }
 
-    pub fn native(&self) -> UNICODE_STRING {
+    pub fn as_unicode_string(&self) -> UNICODE_STRING {
         UNICODE_STRING {
             Length: self.len,
             MaximumLength: self.max_len,
@@ -82,8 +73,29 @@ impl UnicodeString {
         }
     }
 
-    pub fn native_ptr(&self) -> *const UNICODE_STRING {
+    pub fn as_rust_string(&self) -> String {
+        unsafe {
+            let ar = slice::from_raw_parts(self.ptr, self.len as usize / 2);
+            if let Ok(s) = String::from_utf16(ar) {
+                s
+            } else {
+                String::new()
+            }
+        }
+    }
+
+    pub fn as_ptr(&self) -> *const UNICODE_STRING {
         self as *const Self as *const UNICODE_STRING
+    }
+}
+
+impl From<UNICODE_STRING> for UnicodeString {
+    fn from(unicode: UNICODE_STRING) -> Self {
+        UnicodeString {
+            len: unicode.Length,
+            max_len: unicode.MaximumLength,
+            ptr: unicode.Buffer,
+        }
     }
 }
 
@@ -125,6 +137,12 @@ impl<'a> From<&AnsiString> for UnicodeString {
     }
 }
 
+impl Display for UnicodeString {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.as_rust_string())
+    }
+}
+
 impl Default for UnicodeString {
     fn default() -> Self {
         Self {
@@ -149,7 +167,7 @@ extern "system" {
     pub fn RtlFreeUnicodeString(src: &mut UnicodeString);
 
     pub fn RtlIntegerToUnicodeString(Value: u32, Base: u32, String: &mut UnicodeString)
-        -> NTSTATUS;
+                                     -> NTSTATUS;
     // pub fn RtlInt64ToUnicodeString(Value: u64, Base: u32, String: &mut
     // UNICODE_STRING) -> NTSTATUS; pub fn RtlUnicodeStringToInteger(String:
     // &CONST_UNICODE_STRING, Base: u32, Value: &mut u32) -> NTSTATUS;

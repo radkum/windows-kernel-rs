@@ -1,4 +1,6 @@
-use crate::CTL_CODE;
+#![allow(unused)]
+
+use kernel_macros::CTL_CODE;
 use winapi::shared::ntdef::ULONG;
 
 const IOCTL_REQUEST: ULONG = CTL_CODE!(0x8000, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS);

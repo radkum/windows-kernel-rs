@@ -1,0 +1,20 @@
+[package]
+name = "km-api-sys"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+kernel-string = { path = "../kernel-string"}
+
+[dependencies.winapi]
+git = "https://github.com/Trantect/winapi-rs.git"
+branch = "feature/km"
+features = [
+    "wdm",
+    "ntstatus",
+]
+
+[build-dependencies]
+winreg = "0.7.0"
+failure = "0.1.8"
