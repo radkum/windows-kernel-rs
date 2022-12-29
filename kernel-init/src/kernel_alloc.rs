@@ -1,7 +1,5 @@
-#![no_std]
-#![feature(alloc_error_handler)]
-
-extern crate alloc;
+//it must be defined in lib.rs
+//#![feature(alloc_error_handler)]
 
 use km_api_sys::ntoskrnl::{ExAllocatePool2, ExFreePool, POOL_FLAG_PAGED};
 use alloc::alloc::handle_alloc_error;

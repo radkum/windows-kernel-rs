@@ -1,15 +1,14 @@
 #![no_std]
-#![feature(default_alloc_error_handler)]
 #![allow(non_snake_case)]
-#![feature(lang_items)]
 extern crate alloc;
 
 mod cleaner;
 mod ioctl_code;
 mod item;
-mod kernel_init;
 
-use crate::cleaner::Cleaner;
+/// kernel-init deliver a few elements (eg. panic implementation) necessary to run code in kernel
+use kernel_init;
+
 use alloc::collections::VecDeque;
 use alloc::string::ToString;
 use alloc::vec::Vec;
@@ -27,11 +26,6 @@ use kernel_fast_mutex::auto_lock::AutoLock;
 use kernel_fast_mutex::fast_mutex::FastMutex;
 use kernel_fast_mutex::locker::Locker;
 
-use crate::item::ItemInfo;
-
-use crate::ItemInfo::{
-    ImageLoad, ProcessCreate, ProcessExit, RegistrySetValue, ThreadCreate, ThreadExit,
-};
 use core::ptr::null_mut;
 use kernel_macros::{HandleToU32, NT_SUCCESS};
 use kernel_print::kernel_print;
@@ -49,6 +43,13 @@ use km_api_sys::wmd::{
     PREG_SET_VALUE_KEY_INFORMATION,
 };
 use winapi::km::wdm::DEVICE_FLAGS::DO_DIRECT_IO;
+
+use crate::cleaner::Cleaner;
+use crate::item::ItemInfo;
+
+use crate::ItemInfo::{
+    ImageLoad, ProcessCreate, ProcessExit, RegistrySetValue, ThreadCreate, ThreadExit,
+};
 
 const DEVICE_NAME: &str = "\\Device\\Zero";
 const SYM_LINK_NAME: &str = "\\??\\Zero";
