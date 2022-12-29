@@ -33,6 +33,8 @@ impl<'a> From<&'a [u8]> for AnsiString {
         unsafe {
             RtlInitAnsiString(&mut str, buffer.as_ptr());
         }
+
+        ::core::mem::forget(buffer);
         str
     }
 }
