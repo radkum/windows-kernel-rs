@@ -59,6 +59,7 @@ pub struct UnicodeString {
     pub max_len: u16,
     pub ptr: *const u16,
 }
+pub type PUnicodeString = *mut UnicodeString;
 
 impl UnicodeString {
     pub fn create(buffer: &str) -> Self {

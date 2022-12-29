@@ -14,6 +14,10 @@ use kernel_string::UnicodeString;
 extern "system" {
     pub fn MmIsAddressValid(virtual_address: PVOID) -> bool;
 
+    pub fn PsGetCurrentProcessId() -> HANDLE;
+
+    pub fn PsGetCurrentThreadId() -> HANDLE;
+
     pub fn PsSetCreateProcessNotifyRoutineEx(
         notify_routine: PCREATE_PROCESS_NOTIFY_ROUTINE_EX,
         remove: BOOLEAN,

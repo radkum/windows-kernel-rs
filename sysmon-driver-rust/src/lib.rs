@@ -13,6 +13,8 @@ mod kernel_init;
 use crate::cleaner::Cleaner;
 use alloc::collections::VecDeque;
 use alloc::string::ToString;
+use alloc::vec::Vec;
+use core::mem::forget;
 
 use winapi::km::wdm::{
     IoCompleteRequest, IoCreateDevice, IoCreateSymbolicLink, IoDeleteDevice, IoDeleteSymbolicLink,
@@ -23,29 +25,34 @@ use winapi::shared::ntdef::{BOOLEAN, FALSE, LONGLONG, NTSTATUS, TRUE, UNICODE_ST
 
 use winapi::shared::ntstatus::{
     STATUS_INSUFFICIENT_RESOURCES, STATUS_INVALID_BUFFER_SIZE, STATUS_INVALID_DEVICE_REQUEST,
-    STATUS_SUCCESS,
+    STATUS_SUCCESS, STATUS_UNSUCCESSFUL,
 };
 
-use kernel_mutex::auto_lock::AutoLock;
-use kernel_mutex::fast_mutex::FastMutex;
-use kernel_mutex::locker::Locker;
+use kernel_fast_mutex::auto_lock::AutoLock;
+use kernel_fast_mutex::fast_mutex::FastMutex;
+use kernel_fast_mutex::locker::Locker;
 
 use crate::io_stack_location_parameters::Parameters;
 use crate::item::ItemInfo;
 
-use crate::ItemInfo::{ImageLoad, ProcessCreate, ProcessExit, ThreadCreate, ThreadExit};
+use crate::ItemInfo::{
+    ImageLoad, ProcessCreate, ProcessExit, RegistrySetValue, ThreadCreate, ThreadExit,
+};
 use core::ptr::null_mut;
 use kernel_macros::{HandleToU32, NT_SUCCESS};
 use kernel_print::kernel_print;
-use kernel_string::UnicodeString;
+use kernel_string::{PUnicodeString, UnicodeString};
 
 use km_api_sys::ntddk::{
-    PsRemoveCreateThreadNotifyRoutine, PsRemoveLoadImageNotifyRoutine,
-    PsSetCreateProcessNotifyRoutineEx, PsSetCreateThreadNotifyRoutine, PsSetLoadImageNotifyRoutine,
-    HANDLE, PIMAGE_INFO, PPS_CREATE_NOTIFY_INFO, PVOID, REG_NT_POST_SET_VALUE_KEY,
+    PsGetCurrentProcessId, PsGetCurrentThreadId, PsRemoveCreateThreadNotifyRoutine,
+    PsRemoveLoadImageNotifyRoutine, PsSetCreateProcessNotifyRoutineEx,
+    PsSetCreateThreadNotifyRoutine, PsSetLoadImageNotifyRoutine, HANDLE, PIMAGE_INFO,
+    PPS_CREATE_NOTIFY_INFO, PS_CREATE_NOTIFY_INFO, PVOID, REG_NT_POST_SET_VALUE_KEY,
 };
 use km_api_sys::wmd::{
-    CmRegisterCallbackEx, CmUnRegisterCallback, MmGetSystemAddressForMdlSafe, MDL,
+    CmCallbackGetKeyObjectIDEx, CmCallbackReleaseKeyObjectIDEx, CmRegisterCallbackEx,
+    CmUnRegisterCallback, MmGetSystemAddressForMdlSafe, MDL, PREG_POST_OPERATION_INFORMATION,
+    PREG_SET_VALUE_KEY_INFORMATION,
 };
 use winapi::km::wdm::DEVICE_FLAGS::DO_DIRECT_IO;
 
@@ -291,11 +298,14 @@ extern "system" fn OnProcessNotify(
         kernel_print!("process create");
 
         let item = if !create_info.is_null() {
-            let image_file_name = (*create_info).image_file_name;
+            let create_info: &PS_CREATE_NOTIFY_INFO = &*create_info;
+            let create_info: &PS_CREATE_NOTIFY_INFO = &*create_info;
+
+            let image_file_name = &*create_info.image_file_name;
             ProcessCreate {
                 pid: HandleToU32!(process_id),
-                parent_pid: HandleToU32!((*create_info).parent_process_id),
-                command_line: (*image_file_name).as_rust_string(),
+                parent_pid: HandleToU32!(create_info.parent_process_id),
+                command_line: image_file_name.as_rust_string(),
             }
         } else {
             ProcessExit {
@@ -328,7 +338,7 @@ extern "system" fn OnThreadNotify(process_id: HANDLE, thread_id: HANDLE, create:
 }
 
 extern "system" fn OnImageLoadNotify(
-    full_image_name: *mut UnicodeString,
+    full_image_name: PUnicodeString,
     process_id: HANDLE,
     image_info: PIMAGE_INFO,
 ) {
@@ -346,10 +356,11 @@ extern "system" fn OnImageLoadNotify(
             (*full_image_name).as_rust_string()
         };
 
+        let image_info = &*image_info;
         let item = ImageLoad {
             pid: HandleToU32!(process_id),
-            load_address: (*image_info).image_base,
-            image_size: (*image_info).image_size,
+            load_address: image_info.image_base,
+            image_size: image_info.image_size,
             image_file_name: image_name,
         };
 
@@ -357,13 +368,66 @@ extern "system" fn OnImageLoadNotify(
     }
 }
 
-extern "system" fn OnRegistryNotify(_context: PVOID, arg1: PVOID, _arg2: PVOID) -> NTSTATUS {
+extern "system" fn OnRegistryNotify(_context: PVOID, arg1: PVOID, arg2: PVOID) -> NTSTATUS {
     let reg_notify = HandleToU32!(arg1);
     if reg_notify == REG_NT_POST_SET_VALUE_KEY {
         kernel_print!("RegNtPostSetValueKey");
+        unsafe {
+            let op_info = &*(arg2 as PREG_POST_OPERATION_INFORMATION);
+            if !NT_SUCCESS!(op_info.status) {
+                return STATUS_SUCCESS;
+            }
+
+            let mut name: PUnicodeString = null_mut();
+            let status =
+                CmCallbackGetKeyObjectIDEx(&G_COOKIE, op_info.object, null_mut(), &mut name, 0);
+            if !NT_SUCCESS!(status) {
+                return STATUS_SUCCESS;
+            }
+
+            if name.is_null() {
+                //something wrong
+                return STATUS_UNSUCCESSFUL;
+            }
+
+            loop {
+                let key_name = (*name).as_rust_string();
+                let registry_machine = "\\REGISTRY\\MACHINE";
+
+                // filter out none-HKLM writes
+                if key_name.contains(registry_machine) {
+                    if op_info.pre_information.is_null() {
+                        //something wrong
+                        break;
+                    }
+
+                    let pre_info = &*(op_info.pre_information as PREG_SET_VALUE_KEY_INFORMATION);
+                    let value_name = (*pre_info.value_name).as_rust_string();
+                    let v = Vec::from_raw_parts(
+                        pre_info.data as *mut u8,
+                        pre_info.data_size as usize,
+                        pre_info.data_size as usize,
+                    );
+
+                    let item = RegistrySetValue {
+                        pid: HandleToU32!(PsGetCurrentProcessId()),
+                        tid: HandleToU32!(PsGetCurrentThreadId()),
+                        key_name,
+                        value_name,
+                        data_type: pre_info.data_type,
+                        data: v.clone(),
+                    };
+
+                    forget(v);
+                    push_item_thread_safe(item);
+                }
+                break;
+            }
+            CmCallbackReleaseKeyObjectIDEx(name);
+        }
     }
 
-    0
+    STATUS_SUCCESS
 }
 
 unsafe fn push_item_thread_safe(item: ItemInfo) {

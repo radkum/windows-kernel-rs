@@ -1,5 +1,6 @@
 use crate::PVOID;
 use alloc::string::String;
+use alloc::vec::Vec;
 
 #[derive(Debug)]
 pub(crate) enum ItemInfo {
@@ -24,5 +25,13 @@ pub(crate) enum ItemInfo {
         load_address: PVOID,
         image_size: usize,
         image_file_name: String,
+    },
+    RegistrySetValue {
+        pid: u32,
+        tid: u32,
+        key_name: String,
+        value_name: String,
+        data_type: u32,
+        data: Vec<u8>,
     },
 }

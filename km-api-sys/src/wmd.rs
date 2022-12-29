@@ -4,15 +4,19 @@
 use core::mem;
 use core::ptr::null_mut;
 use winapi::km::ndis::PMDL;
-use winapi::km::wdm::{SynchronizationEvent, DRIVER_OBJECT, EVENT_TYPE, KPROCESSOR_MODE};
-use winapi::shared::ntdef::{BOOLEAN, FALSE, LONG, LONGLONG, NTSTATUS, ULONG};
+use winapi::km::wdm::{
+    SynchronizationEvent, DISPATCHER_HEADER, DRIVER_OBJECT, EVENT_TYPE, KEVENT, KPROCESSOR_MODE,
+    PKEVENT,
+};
+use winapi::shared::ntdef::{BOOLEAN, FALSE, LIST_ENTRY, LONG, LONGLONG, NTSTATUS, ULONG};
+use winapi::shared::basetsd::PULONG_PTR;
 
 pub type PVOID = *mut winapi::ctypes::c_void;
 pub type HANDLE = PVOID;
 pub type SIZE_T = usize;
 
 pub use crate::constants::*;
-use kernel_string::UnicodeString;
+use kernel_string::{PUnicodeString, UnicodeString};
 
 extern "system" {
     pub fn ObfDereferenceObject(object: PVOID);
@@ -47,7 +51,11 @@ extern "system" {
 
     pub fn ExReleaseFastMutex(mutex: PFAST_MUTEX);
 
-    pub fn KeInitializeEvent(mutex: PVOID, typee: EVENT_TYPE, state: BOOLEAN);
+    pub fn KeInitializeEvent(mutex: PKEVENT, typee: EVENT_TYPE, state: BOOLEAN);
+
+    pub fn CmCallbackGetKeyObjectIDEx(cookie: &LONGLONG, object: PVOID, object_id: PULONG_PTR, object_name: &mut PUnicodeString, flags: ULONG) -> NTSTATUS;
+
+    pub fn CmCallbackReleaseKeyObjectIDEx(name: PUnicodeString);
 }
 
 pub unsafe fn ExInitializeFastMutex(mutex: &mut FAST_MUTEX) {
@@ -55,22 +63,21 @@ pub unsafe fn ExInitializeFastMutex(mutex: &mut FAST_MUTEX) {
     mutex.owner = null_mut();
     mutex.contention = 0;
 
-    KeInitializeEvent(
-        &mut mutex.byte_filler as *mut u8 as PVOID,
-        SynchronizationEvent,
-        FALSE,
-    );
+    KeInitializeEvent(&mut mutex.event as PKEVENT, SynchronizationEvent, FALSE);
 }
+
+//structures are defined for x64. I'm not sure it will works for x86. So fail to compile on x86
+const _SIZE_CHECKER: [u8; 8] = [0; mem::size_of::<usize>()];
 
 #[repr(C)]
 pub struct FAST_MUTEX {
     pub(crate) count: LONG,
     pub(crate) owner: PVOID,
     pub(crate) contention: ULONG,
-    pub(crate) byte_filler: [u8; 36],
+    pub(crate) event: KEVENT,
     pub(crate) old_irql: ULONG,
 }
-const _SIZE_CHECKER: [u8; 8] = [0; mem::size_of::<usize>()];
+
 
 impl FAST_MUTEX {
     pub const fn new() -> Self {
@@ -78,7 +85,19 @@ impl FAST_MUTEX {
             count: 0,
             owner: null_mut(),
             contention: 9,
-            byte_filler: [0; 36],
+            event: KEVENT {
+                Header: DISPATCHER_HEADER {
+                    Type: 0,
+                    Absolute: 0,
+                    Size: 0,
+                    Inserted: 0,
+                    SignalState: 0,
+                    WaitListHead: LIST_ENTRY {
+                        Blink: null_mut(),
+                        Flink: null_mut(),
+                    },
+                },
+            },
             old_irql: 0,
         }
     }
@@ -124,32 +143,28 @@ pub fn MmGetSystemAddressForMdlSafe(mdl: *mut MDL, priority: ULONG) -> PVOID {
     }
 }
 
-// #[repr(C)]
-// pub struct FAST_MUTEX {
-//     pub(crate) count: LONG,
-//     pub(crate) owner: PVOID,
-//     pub(crate) contention: ULONG,
-//     pub(crate) event: KEVENT,
-//     pub(crate) old_irql: ULONG,
-// }
+#[repr(C)]
+pub struct REG_POST_OPERATION_INFORMATION {
+    pub object: PVOID,
+    pub status: NTSTATUS,
+    pub pre_information: PVOID,
+    pub return_status: NTSTATUS,
+    pub call_context: PVOID,
+    pub object_context: PVOID,
+    pub reserved: PVOID,
+}
+pub type PREG_POST_OPERATION_INFORMATION = *mut REG_POST_OPERATION_INFORMATION;
 
-// impl FAST_MUTEX {
-//     pub fn new() -> Self {
-//         Self {
-//             count: 0,
-//             owner: null_mut(),
-//             contention: 0,
-//             event: KEVENT {
-//                 Header: DISPATCHER_HEADER {
-//                     Type: 0,
-//                     Absolute: 0,
-//                     Size: 0,
-//                     Inserted: 0,
-//                     SignalState: 0,
-//                     WaitListHead: LIST_ENTRY {Blink: null_mut(), Flink: null_mut()},
-//                 },
-//             },
-//             old_irql: 0,
-//         }
-//     }
-// }
+#[repr(C)]
+pub struct REG_SET_VALUE_KEY_INFORMATION {
+    pub object: PVOID,
+    pub value_name: PUnicodeString,
+    pub title_index: ULONG,
+    pub data_type: ULONG,
+    pub data: PVOID,
+    pub data_size: ULONG,
+    pub call_context: PVOID,
+    pub object_context: PVOID,
+    pub reserved: PVOID,
+}
+pub type PREG_SET_VALUE_KEY_INFORMATION = *mut REG_SET_VALUE_KEY_INFORMATION;
