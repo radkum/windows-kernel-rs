@@ -14,7 +14,7 @@ kernel-alloc    = { path = "../kernel-alloc"}
 km-api-sys       = { path = "../km-api-sys"}
 kernel-string   = { path = "../kernel-string"}
 kernel-macros   = { path = "../kernel-macros"}
-kernel-mutex   = { path = "../kernel-mutex"}
+kernel-fast-mutex   = { path = "../kernel-fast-mutex"}
 
 [dependencies.winapi]
 git = "https://github.com/Trantect/winapi-rs.git"
