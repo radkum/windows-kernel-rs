@@ -5,7 +5,6 @@
 extern crate alloc;
 
 mod cleaner;
-mod io_stack_location_parameters;
 mod ioctl_code;
 mod item;
 mod kernel_init;
@@ -16,11 +15,7 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 use core::mem::forget;
 
-use winapi::km::wdm::{
-    IoCompleteRequest, IoCreateDevice, IoCreateSymbolicLink, IoDeleteDevice, IoDeleteSymbolicLink,
-    IoGetCurrentIrpStackLocation, DEVICE_OBJECT, DEVICE_TYPE, DRIVER_OBJECT, IRP, IRP_MJ,
-    PDEVICE_OBJECT, PEPROCESS,
-};
+use winapi::km::wdm::{IoCompleteRequest, IoCreateDevice, IoCreateSymbolicLink, IoDeleteDevice, IoDeleteSymbolicLink, IoGetCurrentIrpStackLocation, DEVICE_OBJECT, DEVICE_TYPE, DRIVER_OBJECT, IRP, IRP_MJ, PDEVICE_OBJECT, PEPROCESS, IO_STACK_LOCATION, _IO_STACK_LOCATION_READ};
 use winapi::shared::ntdef::{BOOLEAN, FALSE, LONGLONG, NTSTATUS, TRUE, UNICODE_STRING};
 
 use winapi::shared::ntstatus::{
@@ -32,7 +27,6 @@ use kernel_fast_mutex::auto_lock::AutoLock;
 use kernel_fast_mutex::fast_mutex::FastMutex;
 use kernel_fast_mutex::locker::Locker;
 
-use crate::io_stack_location_parameters::Parameters;
 use crate::item::ItemInfo;
 
 use crate::ItemInfo::{
@@ -235,9 +229,8 @@ extern "system" fn DispatchRead(_driver: &mut DEVICE_OBJECT, irp: &mut IRP) -> N
 
     unsafe {
         let stack = IoGetCurrentIrpStackLocation(irp);
-        //stack->Parameters.Read.Length;
-        let parameters_read = Parameters::Read(&mut (*stack).Parameters);
-        let len = (*parameters_read).length;
+        let parameters_read = (*stack).ParametersRead();
+        let len = parameters_read.Length;
 
         kernel_print::kernel_println!("read len: {}", len);
 
@@ -267,13 +260,21 @@ extern "system" fn DispatchRead(_driver: &mut DEVICE_OBJECT, irp: &mut IRP) -> N
     }
 }
 
+#[allow(non_camel_case_types)]
+pub type _IO_STACK_LOCATION_WRITE = _IO_STACK_LOCATION_READ;
+pub fn ParametersWrite(stack_loc: &mut IO_STACK_LOCATION) -> &mut _IO_STACK_LOCATION_WRITE {
+    stack_loc.ParametersRead()
+}
+
 extern "system" fn DispatchWrite(_driver: &mut DEVICE_OBJECT, irp: &mut IRP) -> NTSTATUS {
     kernel_print::kernel_println!("DispatchWrite begin");
 
     unsafe {
         let stack = IoGetCurrentIrpStackLocation(irp);
-        let parameters_write = Parameters::Write(&mut (*stack).Parameters);
-        let len = (*parameters_write).length;
+        let stack = &mut *stack;
+        let parameters_write = ParametersWrite(stack);
+
+        let len = parameters_write.Length;
 
         complete_irp(irp, STATUS_SUCCESS, len as usize)
     }
