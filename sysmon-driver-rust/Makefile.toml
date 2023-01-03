@@ -1,3 +1,6 @@
+[env]
+DRIVER_NAME = "sysmon"
+
 [env.development]
 TARGET_PATH = "target\\x86_64-pc-windows-msvc\\debug"
 
@@ -15,7 +18,7 @@ dependencies = ["build-driver"]
 ignore_errors = true
 script = [
     "cd %TARGET_PATH%",
-    "rename driver.dll driver.sys",
+    "rename %DRIVER_NAME%.dll %DRIVER_NAME%.sys",
 ]
 
 [tasks.sign]
@@ -28,12 +31,13 @@ script = [
     "if not exist DriverCertificate.cer ( makecert -r -pe -ss PrivateCertStore -n CN=DriverCertificate DriverCertificate.cer ) else ( echo Certificate already exists. )",
 
     # Sign the driver
-    "signtool sign /fd SHA256 /a /v /s PrivateCertStore /n DriverCertificate /t http://timestamp.digicert.com %TARGET_PATH%/driver.sys"
+    "signtool sign /fd SHA256 /a /v /s PrivateCertStore /n DriverCertificate /t http://timestamp.digicert.com %TARGET_PATH%/%DRIVER_NAME%.sys"
 ]
 
 [tasks.copy]
 script = [
-    "COPY %TARGET_PATH%\\driver.sys ."
+    "IF not exist myDirName (mkdir output)",
+    "COPY %TARGET_PATH%\\%DRIVER_NAME%.sys .\\output"
 ]
 
 [tasks.all]
