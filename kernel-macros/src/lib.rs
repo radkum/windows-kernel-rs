@@ -21,3 +21,13 @@ macro_rules! HandleToU32 {
         ($Handle as u32)
     };
 }
+
+#[macro_export]
+macro_rules! PAGED_CODE {
+    () => {
+        // if KeGetCurrentIrql() > 1/*APC_LEVEL*/
+        // {
+        //     return STATUS_UNSUCCESSFUL;
+        // }
+    };
+}

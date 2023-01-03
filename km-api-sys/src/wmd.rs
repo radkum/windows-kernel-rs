@@ -8,12 +8,13 @@ use winapi::km::wdm::{
     SynchronizationEvent, DISPATCHER_HEADER, DRIVER_OBJECT, EVENT_TYPE, KEVENT, KPROCESSOR_MODE,
     PKEVENT,
 };
-use winapi::shared::ntdef::{BOOLEAN, FALSE, LIST_ENTRY, LONG, LONGLONG, NTSTATUS, ULONG};
+use winapi::shared::ntdef::{BOOLEAN, FALSE, LIST_ENTRY, LONG, LONGLONG, NTSTATUS, ULONG, UCHAR};
 use winapi::shared::basetsd::PULONG_PTR;
 
 pub type PVOID = *mut winapi::ctypes::c_void;
 pub type HANDLE = PVOID;
 pub type SIZE_T = usize;
+pub type KIRQL = UCHAR;
 
 pub use crate::constants::*;
 use kernel_string::{PUnicodeString, UnicodeString};
@@ -56,6 +57,11 @@ extern "system" {
     pub fn CmCallbackGetKeyObjectIDEx(cookie: &LONGLONG, object: PVOID, object_id: PULONG_PTR, object_name: &mut PUnicodeString, flags: ULONG) -> NTSTATUS;
 
     pub fn CmCallbackReleaseKeyObjectIDEx(name: PUnicodeString);
+}
+
+#[link(name = "hal")]
+extern "system" {
+    pub fn KeGetCurrentIrql() -> KIRQL;
 }
 
 pub unsafe fn ExInitializeFastMutex(mutex: &mut FAST_MUTEX) {

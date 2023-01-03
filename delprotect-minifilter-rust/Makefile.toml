@@ -1,5 +1,7 @@
 [env]
 DRIVER_NAME = "DelProtect"
+OUTPUT_PATH = "output"
+DDK_PLATFORM = "x64"
 
 [env.development]
 TARGET_PATH = "target\\x86_64-pc-windows-msvc\\debug"
@@ -37,11 +39,21 @@ script = [
 [tasks.copy]
 script = [
     "IF not exist myDirName (mkdir output)",
-    "COPY %TARGET_PATH%\\%DRIVER_NAME%.sys .\\output"
+    "COPY %TARGET_PATH%\\%DRIVER_NAME%.sys .\\output",
+    "COPY %DRIVER_NAME%.inf .\\output",
+]
+
+[tasks.inf2cat]
+dependencies = ["copy"]
+script = [
+    # Load the Visual Studio Developer environment
+    "call \"%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\Professional\\VC\\Auxiliary\\Build\\vcvars32.bat\"",
+
+    "inf2cat /driver:%OUTPUT_PATH% /os:10_%DDK_PLATFORM%"
 ]
 
 [tasks.all]
-dependencies = ["build-driver", "rename", "sign", "copy"]
+dependencies = ["build-driver", "rename", "sign", "copy", "inf2cat"]
 
 [tasks.rebuild]
 script = [
