@@ -5,7 +5,7 @@ use km_api_sys::ntoskrnl::{ExAllocatePool2, ExFreePool, POOL_FLAG_PAGED};
 use alloc::alloc::handle_alloc_error;
 use core::alloc::{GlobalAlloc, Layout};
 
-const POOL_TAG: u32 = u32::from_ne_bytes(*b"TSUR");
+pub const POOL_TAG: u32 = u32::from_ne_bytes(*b"TSUR");
 
 pub struct KernelAlloc;
 
