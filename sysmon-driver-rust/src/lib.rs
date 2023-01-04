@@ -54,7 +54,7 @@ use crate::ItemInfo::{
 const DEVICE_NAME: &str = "\\Device\\Zero";
 const SYM_LINK_NAME: &str = "\\??\\Zero";
 
-const MAX_ITEM_COUNT: usize = 1024;
+const MAX_ITEM_COUNT: usize = 256;
 
 static mut G_EVENTS: Option<VecDeque<ItemInfo>> = None;
 static mut G_MUTEX: FastMutex = FastMutex::new();
@@ -69,7 +69,11 @@ pub unsafe extern "system" fn DriverEntry(
 
     G_MUTEX.init();
 
-    G_EVENTS = Some(VecDeque::new());
+    let events = VecDeque::new();
+
+    //todo try reserve
+    //events.try_reserve(MAX_ITEM_COUNT);
+    G_EVENTS = Some(events);
 
     driver.DriverUnload = Some(DriverUnload);
 
