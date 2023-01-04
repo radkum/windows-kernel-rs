@@ -1,0 +1,1 @@
+pub const FILE_DELETE_ON_CLOSE: u32 = 0x00001000;

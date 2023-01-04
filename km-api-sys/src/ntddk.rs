@@ -1,6 +1,9 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
+mod process_info_class;
+pub use process_info_class::*;
+
 use winapi::km::wdm::{PEPROCESS, PFILE_OBJECT};
 use winapi::shared::ntdef::{BOOLEAN, NTSTATUS, ULONG};
 
@@ -72,3 +75,10 @@ pub type PLOAD_IMAGE_NOTIFY_ROUTINE = extern "system" fn(
     process_id: HANDLE,
     image_info: PIMAGE_INFO,
 );
+
+#[repr(C)]
+pub struct FILE_DISPOSITION_INFORMATION {
+    pub delete_file: BOOLEAN,
+}
+
+pub type PFILE_DISPOSITION_INFORMATION = *mut FILE_DISPOSITION_INFORMATION;

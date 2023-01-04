@@ -1,15 +1,22 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
+mod constants;
+pub use constants::*;
+
 use core::mem;
 use core::ptr::null_mut;
 use winapi::km::ndis::PMDL;
 use winapi::km::wdm::{
     SynchronizationEvent, DISPATCHER_HEADER, DRIVER_OBJECT, EVENT_TYPE, KEVENT, KPROCESSOR_MODE,
-    PKEVENT,
+    PEPROCESS, PKEVENT,
 };
-use winapi::shared::ntdef::{BOOLEAN, FALSE, LIST_ENTRY, LONG, LONGLONG, NTSTATUS, ULONG, UCHAR};
 use winapi::shared::basetsd::PULONG_PTR;
+use winapi::shared::ntdef::{
+    BOOLEAN, FALSE, LIST_ENTRY, LONG, LONGLONG, NTSTATUS, PULONG, UCHAR, ULONG,
+};
+
+use crate::ntddk::PROCESSINFOCLASS;
 
 pub type PVOID = *mut winapi::ctypes::c_void;
 pub type HANDLE = PVOID;
@@ -54,9 +61,27 @@ extern "system" {
 
     pub fn KeInitializeEvent(mutex: PKEVENT, typee: EVENT_TYPE, state: BOOLEAN);
 
-    pub fn CmCallbackGetKeyObjectIDEx(cookie: &LONGLONG, object: PVOID, object_id: PULONG_PTR, object_name: &mut PUnicodeString, flags: ULONG) -> NTSTATUS;
+    pub fn CmCallbackGetKeyObjectIDEx(
+        cookie: &LONGLONG,
+        object: PVOID,
+        object_id: PULONG_PTR,
+        object_name: &mut PUnicodeString,
+        flags: ULONG,
+    ) -> NTSTATUS;
 
     pub fn CmCallbackReleaseKeyObjectIDEx(name: PUnicodeString);
+
+    pub fn IoGetCurrentProcess() -> PEPROCESS;
+
+    pub fn ZwQueryInformationProcess(
+        process_handle: HANDLE,
+        process_information_class: PROCESSINFOCLASS,
+        process_information: PVOID,
+        process_information_length: ULONG,
+        return_lenght: PULONG,
+    ) -> NTSTATUS;
+
+    pub fn ZwClose(handle: HANDLE);
 }
 
 #[link(name = "hal")]
@@ -83,7 +108,6 @@ pub struct FAST_MUTEX {
     pub(crate) event: KEVENT,
     pub(crate) old_irql: ULONG,
 }
-
 
 impl FAST_MUTEX {
     pub const fn new() -> Self {
@@ -174,3 +198,7 @@ pub struct REG_SET_VALUE_KEY_INFORMATION {
     pub reserved: PVOID,
 }
 pub type PREG_SET_VALUE_KEY_INFORMATION = *mut REG_SET_VALUE_KEY_INFORMATION;
+
+pub const fn NtCurrentProcess() -> HANDLE {
+    usize::MAX as HANDLE
+}
