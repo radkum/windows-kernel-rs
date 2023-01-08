@@ -1,7 +1,7 @@
+#![allow(non_snake_case)]
+
 use crate::locker::Locker;
-use km_api_sys::wmd::{
-    ExAcquireFastMutex, ExInitializeFastMutex, ExReleaseFastMutex, FAST_MUTEX,
-};
+use km_api_sys::wmd::{ExAcquireFastMutex, ExInitializeFastMutex, ExReleaseFastMutex, FAST_MUTEX};
 
 pub struct FastMutex {
     Mutex: FAST_MUTEX,
