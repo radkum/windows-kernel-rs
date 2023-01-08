@@ -4,27 +4,27 @@ use km_api_sys::wmd::{
 };
 
 pub struct FastMutex {
-    mutex: FAST_MUTEX,
+    Mutex: FAST_MUTEX,
 }
 
 impl FastMutex {
     pub const fn new() -> Self {
         Self {
-            mutex: FAST_MUTEX::new(),
+            Mutex: FAST_MUTEX::new(),
         }
     }
 }
 
 impl Locker for FastMutex {
-    fn init(&mut self) {
-        unsafe { ExInitializeFastMutex(&mut self.mutex) }
+    fn Init(&mut self) {
+        unsafe { ExInitializeFastMutex(&mut self.Mutex) }
     }
 
-    fn lock(&mut self) {
-        unsafe { ExAcquireFastMutex(&mut self.mutex as *mut FAST_MUTEX) }
+    fn Lock(&mut self) {
+        unsafe { ExAcquireFastMutex(&mut self.Mutex as *mut FAST_MUTEX) }
     }
 
-    fn unlock(&mut self) {
-        unsafe { ExReleaseFastMutex(&mut self.mutex as *mut FAST_MUTEX) }
+    fn Unlock(&mut self) {
+        unsafe { ExReleaseFastMutex(&mut self.Mutex as *mut FAST_MUTEX) }
     }
 }

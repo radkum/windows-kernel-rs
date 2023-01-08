@@ -6,7 +6,7 @@ pub struct AutoLock<'a, Lock: Locker> {
 
 impl<'a, Lock: Locker> AutoLock<'a, Lock> {
     pub fn new(locker: &'a mut Lock) -> Self {
-        locker.lock();
+        locker.Lock();
 
         Self { l: locker }
     }
@@ -14,6 +14,6 @@ impl<'a, Lock: Locker> AutoLock<'a, Lock> {
 
 impl<'a, Lock: Locker> Drop for AutoLock<'a, Lock> {
     fn drop(&mut self) {
-        self.l.unlock();
+        self.l.Unlock();
     }
 }

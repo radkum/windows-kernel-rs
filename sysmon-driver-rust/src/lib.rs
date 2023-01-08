@@ -67,7 +67,7 @@ pub unsafe extern "system" fn DriverEntry(
 ) -> NTSTATUS {
     kernel_print::kernel_println!("START");
 
-    G_MUTEX.init();
+    G_MUTEX.Init();
 
     let events = VecDeque::new();
 
