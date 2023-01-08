@@ -10,17 +10,21 @@ use kernel_init;
 use kernel_macros::{NT_SUCCESS, PAGED_CODE};
 
 use kernel_init::kernel_alloc::POOL_TAG;
-use kernel_string::{PUnicodeString, UnicodeString};
-use km_api_sys::flt_kernel::*;
-use km_api_sys::ntddk::{PFILE_DISPOSITION_INFORMATION, PROCESSINFOCLASS};
-use km_api_sys::ntifs::{ObOpenObjectByPointer, PsGetThreadProcess};
-use km_api_sys::ntoskrnl::{ExAllocatePool2, POOL_FLAG_PAGED};
-use km_api_sys::wmd::{
-    NtCurrentProcess, ZwClose, ZwQueryInformationProcess, FILE_DELETE_ON_CLOSE, HANDLE, PVOID,
+use kernel_string::{PUNICODE_STRING, UNICODE_STRING};
+use km_api_sys::{
+    flt_kernel::*,
+    ntddk::{PFILE_DISPOSITION_INFORMATION, PROCESSINFOCLASS},
+    ntifs::{ObOpenObjectByPointer, PsGetThreadProcess},
+    ntoskrnl::{ExAllocatePool2, POOL_FLAG_PAGED},
+    wmd::{NtCurrentProcess, ZwClose, ZwQueryInformationProcess, FILE_DELETE_ON_CLOSE},
 };
-use winapi::km::wdm::{DEVICE_TYPE, DRIVER_OBJECT, KPROCESSOR_MODE};
-use winapi::shared::ntdef::{NTSTATUS, OBJ_KERNEL_HANDLE, ULONG, UNICODE_STRING, USHORT};
-use winapi::shared::ntstatus::{STATUS_ACCESS_DENIED, STATUS_SUCCESS};
+use winapi::{
+    km::wdm::{DEVICE_TYPE, DRIVER_OBJECT, KPROCESSOR_MODE},
+    shared::{
+        ntdef::{HANDLE, NTSTATUS, OBJ_KERNEL_HANDLE, PVOID, ULONG, USHORT},
+        ntstatus::{STATUS_ACCESS_DENIED, STATUS_SUCCESS},
+    },
+};
 
 static mut G_FILTER_HANDLE: PFLT_FILTER = null_mut();
 
@@ -38,22 +42,22 @@ const CALLBACKS: &'static [FLT_OPERATION_REGISTRATION] = {
 };
 
 const FILTER_REGISTRATION: FLT_REGISTRATION = FLT_REGISTRATION {
-    size: ::core::mem::size_of::<FLT_REGISTRATION>() as USHORT, /*sizeof*/
-    version: FLT_REGISTRATION_VERSION,
-    flags: 0,
-    context_registration: null_mut(),
-    operation_registration: CALLBACKS.as_ptr(),
-    filter_unload_callback: DelProtectUnload,
-    instance_setup_callback: DelProtectInstanceSetup,
-    instance_query_teardown_callback: DelProtectInstanceQueryTeardown,
-    instance_teardown_start_callback: DelProtectInstanceTeardownStart,
-    instance_teardown_complete_callback: DelProtectInstanceTeardownComplete,
-    generate_file_name_callback: null_mut(),
-    normalize_namecomponent_callback: null_mut(),
-    normalize_context_cleanup_callback: null_mut(),
-    transaction_notification_callback: null_mut(),
-    normalize_name_component_ex_callback: null_mut(),
-    section_notification_callback: null_mut(),
+    Size: ::core::mem::size_of::<FLT_REGISTRATION>() as USHORT, /*sizeof*/
+    Version: FLT_REGISTRATION_VERSION,
+    Flags: 0,
+    ContextRegistration: null_mut(),
+    OperationRegistration: CALLBACKS.as_ptr(),
+    FilterUnloadCallback: DelProtectUnload,
+    InstanceSetupCallback: DelProtectInstanceSetup,
+    InstanceQueryTeardownCallback: DelProtectInstanceQueryTeardown,
+    InstanceTeardownStartCallback: DelProtectInstanceTeardownStart,
+    InstanceTeardownCompleteCallback: DelProtectInstanceTeardownComplete,
+    GenerateFileNameCallback: null_mut(),
+    NormalizeNameComponentCallback: null_mut(),
+    NormalizeContextCleanupCallback: null_mut(),
+    TransactionNotificationCallback: null_mut(),
+    NormalizeNameComponentExCallback: null_mut(),
+    SectionNotificationCallback: null_mut(),
 };
 
 #[link_section = "INIT"]
@@ -64,7 +68,7 @@ pub unsafe extern "system" fn DriverEntry(
 ) -> NTSTATUS {
     kernel_print::kernel_println!("START");
 
-    let hello_world = UnicodeString::create("Hello World!");
+    let hello_world = UNICODE_STRING::create("Hello World!");
     kernel_print::kernel_println!("{}", hello_world.as_rust_string());
 
     #[allow(unused_assignments)]
@@ -168,18 +172,18 @@ extern "system" fn DelProtectPreCreate(
     let mut status = FLT_PREOP_CALLBACK_STATUS::FLT_PREOP_SUCCESS_NO_CALLBACK;
 
     //let mut data = data as &mut FLT_CALLBACK_DATA;
-    if let KPROCESSOR_MODE::KernelMode = data.requestor_mode {
+    if let KPROCESSOR_MODE::KernelMode = data.RequestorMode {
         return status;
     }
     //kernel_print::kernel_println!("DelProtectPreCreate not in kernel");
 
     unsafe {
-        let params = &(*data.iopb).parameters.Create;
+        let params = &(*data.Iopb).Parameters.Create;
 
-        if (params.options & FILE_DELETE_ON_CLOSE) > 0 {
+        if (params.Options & FILE_DELETE_ON_CLOSE) > 0 {
             kernel_print::kernel_println!("Delete on close");
             if !IsDeleteAllowed(NtCurrentProcess()) {
-                *data.io_status.__bindgen_anon_1.Status_mut() = STATUS_ACCESS_DENIED;
+                *data.IoStatus.__bindgen_anon_1.Status_mut() = STATUS_ACCESS_DENIED;
                 status = FLT_PREOP_CALLBACK_STATUS::FLT_PREOP_COMPLETE;
                 kernel_print::kernel_println!("Prevent delete by cmd.exe");
             }
@@ -197,21 +201,21 @@ extern "system" fn DelProtectPreSetInformation(
     //kernel_print::kernel_println!("DelProtectPreSetInformation");
     let mut status = FLT_PREOP_CALLBACK_STATUS::FLT_PREOP_SUCCESS_NO_CALLBACK;
 
-    let params = unsafe { &(*data.iopb).parameters.SetFileInformation };
+    let params = unsafe { &(*data.Iopb).Parameters.SetFileInformation };
 
-    match params.file_information_class {
+    match params.FileInformationClass {
         FILE_INFORMATION_CLASS::FileDispositionInformation
         | FILE_INFORMATION_CLASS::FileDispositionInformationEx => {},
         _ => return status,
     }
 
-    let info = params.info_buffer as PFILE_DISPOSITION_INFORMATION;
+    let info = params.InfoBuffer as PFILE_DISPOSITION_INFORMATION;
     unsafe {
-        if (*info).delete_file == 0 {
+        if (*info).DeleteFile == 0 {
             return status;
         }
 
-        let process = PsGetThreadProcess(data.thread);
+        let process = PsGetThreadProcess(data.Thread);
         if process.is_null() {
             //something is wrong
             return status;
@@ -232,7 +236,7 @@ extern "system" fn DelProtectPreSetInformation(
         }
 
         if !IsDeleteAllowed(h_process) {
-            *data.io_status.__bindgen_anon_1.Status_mut() = STATUS_ACCESS_DENIED;
+            *data.IoStatus.__bindgen_anon_1.Status_mut() = STATUS_ACCESS_DENIED;
             status = FLT_PREOP_CALLBACK_STATUS::FLT_PREOP_COMPLETE;
             kernel_print::kernel_println!("Prevent delete by cmd.exe");
         }
@@ -244,7 +248,7 @@ extern "system" fn DelProtectPreSetInformation(
 unsafe fn IsDeleteAllowed(h_process: HANDLE) -> bool {
     let process_name_size = 300;
     let process_name =
-        ExAllocatePool2(POOL_FLAG_PAGED, process_name_size, POOL_TAG) as PUnicodeString;
+        ExAllocatePool2(POOL_FLAG_PAGED, process_name_size, POOL_TAG) as PUNICODE_STRING;
 
     let mut return_length: ULONG = 0;
     let status = ZwQueryInformationProcess(
@@ -266,7 +270,7 @@ unsafe fn IsDeleteAllowed(h_process: HANDLE) -> bool {
         let rust_process_name = process_name.as_rust_string();
         kernel_print::kernel_println!("Delete operation from {}", rust_process_name);
 
-        if process_name.len == 0 {
+        if process_name.Length == 0 {
             return true;
         }
 

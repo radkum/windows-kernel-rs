@@ -1,9 +1,9 @@
 //it must be defined in lib.rs
 //#![feature(alloc_error_handler)]
 
-use km_api_sys::ntoskrnl::{ExAllocatePool2, ExFreePool, POOL_FLAG_PAGED};
 use alloc::alloc::handle_alloc_error;
 use core::alloc::{GlobalAlloc, Layout};
+use km_api_sys::ntoskrnl::{ExAllocatePool2, ExFreePool, POOL_FLAG_PAGED};
 
 pub const POOL_TAG: u32 = u32::from_ne_bytes(*b"TSUR");
 
@@ -20,7 +20,9 @@ unsafe impl GlobalAlloc for KernelAlloc {
         pool as _
     }
 
-    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) { ExFreePool(ptr as _); }
+    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
+        ExFreePool(ptr as _);
+    }
 }
 
 #[alloc_error_handler]

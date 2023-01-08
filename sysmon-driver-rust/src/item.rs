@@ -1,6 +1,5 @@
 use crate::PVOID;
-use alloc::string::String;
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 
 #[derive(Debug)]
 pub(crate) enum ItemInfo {

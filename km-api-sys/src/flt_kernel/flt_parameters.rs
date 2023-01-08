@@ -1,6 +1,7 @@
-use winapi::km::ndis::PMDL;
-use winapi::km::wdm::PFILE_OBJECT;
-use winapi::shared::ntdef::{BOOLEAN, HANDLE, LARGE_INTEGER, PVOID, ULONG, USHORT};
+use winapi::{
+    km::{ndis::PMDL, wdm::PFILE_OBJECT},
+    shared::ntdef::{BOOLEAN, HANDLE, LARGE_INTEGER, PVOID, ULONG, USHORT},
+};
 
 #[repr(C)]
 pub union FLT_PARAMETERS {
@@ -17,50 +18,50 @@ pub type PIO_SECURITY_CONTEXT = PVOID;
 
 #[repr(C)]
 pub struct FLT_PARAMETERS_CREATE {
-    pub security_context: PIO_SECURITY_CONTEXT,
-    pub options: ULONG,
+    pub SecurityContext: PIO_SECURITY_CONTEXT,
+    pub Options: ULONG,
     #[cfg(target_arch = "x86_64")]
-    padding_1: u32,
-    pub file_attributes: USHORT,
-    pub share_access: USHORT,
+    PointerPadding1: u32,
+    pub FileAttributes: USHORT,
+    pub ShareAccess: USHORT,
     #[cfg(target_arch = "x86_64")]
-    padding_2: u32,
-    pub ea_length: ULONG,
-    pub ea_buffer: PVOID,
-    pub allocation_size: LARGE_INTEGER,
+    PointerPadding2: u32,
+    pub EaLength: ULONG,
+    pub EaBuffer: PVOID,
+    pub AllocationSize: LARGE_INTEGER,
 }
 
 #[repr(C)]
 pub struct FLT_PARAMETERS_READ {
-    length: ULONG,
-    key: ULONG,
-    byte_offset: LARGE_INTEGER,
-    write_buffer: PVOID,
-    mdl_address: PMDL,
+    Length: ULONG,
+    Key: ULONG,
+    ByteOffset: LARGE_INTEGER,
+    WriteBuffer: PVOID,
+    MdlAddress: PMDL,
 }
 
 #[repr(C)]
 pub struct FLT_PARAMETERS_SET_FILE_INFORMATION_UNION_STRUCT {
-    replace_if_exists: BOOLEAN,
-    advance_only: BOOLEAN,
+    ReplaceIfExists: BOOLEAN,
+    AdvanceOnly: BOOLEAN,
 }
 
 #[repr(C)]
 pub union FLT_PARAMETERS_SET_FILE_INFORMATION_UNION {
-    struct_union: ::core::mem::ManuallyDrop<FLT_PARAMETERS_SET_FILE_INFORMATION_UNION_STRUCT>,
-    cluster_count: ULONG,
-    delete_handle: HANDLE,
+    StructUnion: ::core::mem::ManuallyDrop<FLT_PARAMETERS_SET_FILE_INFORMATION_UNION_STRUCT>,
+    ClusterCount: ULONG,
+    DeleteHandle: HANDLE,
 }
 
 #[repr(C)]
 pub struct FLT_PARAMETERS_SET_FILE_INFORMATION {
-    pub length: ULONG,
+    pub Length: ULONG,
     #[cfg(target_arch = "x86_64")]
-    padding_1: u32,
-    pub file_information_class: FILE_INFORMATION_CLASS,
-    pub parent_of_target: PFILE_OBJECT,
-    pub union: FLT_PARAMETERS_SET_FILE_INFORMATION_UNION,
-    pub info_buffer: PVOID,
+    PointerPadding1: u32,
+    pub FileInformationClass: FILE_INFORMATION_CLASS,
+    pub ParentOfTarget: PFILE_OBJECT,
+    pub UnnamedUnion: FLT_PARAMETERS_SET_FILE_INFORMATION_UNION,
+    pub InfoBuffer: PVOID,
 }
 
 #[repr(C)]

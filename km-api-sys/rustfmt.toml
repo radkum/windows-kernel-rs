@@ -1,7 +1,7 @@
 # Invoke using 'cargo +nightly fmt'.
 edition = "2021"
 unstable_features = true
-imports_granularity = "Module"
+imports_granularity = "Crate"
 newline_style = "Windows"
 reorder_modules = true
 reorder_imports = true

@@ -1,19 +1,24 @@
-use crate::{PsSetCreateProcessNotifyRoutineEx, UnicodeString};
-use km_api_sys::ntddk::{
-    PsRemoveCreateThreadNotifyRoutine, PsRemoveLoadImageNotifyRoutine,
-    PCREATE_PROCESS_NOTIFY_ROUTINE_EX, PCREATE_THREAD_NOTIFY_ROUTINE, PLOAD_IMAGE_NOTIFY_ROUTINE,
+use crate::{PsSetCreateProcessNotifyRoutineEx, UNICODE_STRING};
+use km_api_sys::{
+    ntddk::{
+        PsRemoveCreateThreadNotifyRoutine, PsRemoveLoadImageNotifyRoutine,
+        PCREATE_PROCESS_NOTIFY_ROUTINE_EX, PCREATE_THREAD_NOTIFY_ROUTINE,
+        PLOAD_IMAGE_NOTIFY_ROUTINE,
+    },
+    wmd::{CmUnRegisterCallback, LARGE_INTEGER},
 };
-use km_api_sys::wmd::CmUnRegisterCallback;
-use winapi::km::wdm::{IoDeleteDevice, IoDeleteSymbolicLink, PDEVICE_OBJECT};
-use winapi::shared::ntdef::{LONGLONG, TRUE};
+use winapi::{
+    km::wdm::{IoDeleteDevice, IoDeleteSymbolicLink, PDEVICE_OBJECT},
+    shared::ntdef::TRUE,
+};
 
 pub struct Cleaner {
     device_object: Option<PDEVICE_OBJECT>,
-    sym_link: Option<*const UnicodeString>,
+    sym_link: Option<*const UNICODE_STRING>,
     create_process_callback: Option<PCREATE_PROCESS_NOTIFY_ROUTINE_EX>,
     thread_process_callback: Option<PCREATE_THREAD_NOTIFY_ROUTINE>,
     load_image_callback: Option<PLOAD_IMAGE_NOTIFY_ROUTINE>,
-    registry_callback: Option<LONGLONG>,
+    registry_callback: Option<LARGE_INTEGER>,
 }
 
 impl Cleaner {
@@ -32,8 +37,8 @@ impl Cleaner {
         self.device_object = Some(device);
     }
 
-    pub fn init_symlink(&mut self, sym_link: &UnicodeString) {
-        self.sym_link = Some(sym_link as *const UnicodeString);
+    pub fn init_symlink(&mut self, sym_link: &UNICODE_STRING) {
+        self.sym_link = Some(sym_link as *const UNICODE_STRING);
     }
 
     pub fn init_process_create_callback(&mut self, callback: PCREATE_PROCESS_NOTIFY_ROUTINE_EX) {
@@ -48,7 +53,7 @@ impl Cleaner {
         self.load_image_callback = Some(callback);
     }
 
-    pub fn init_registry_callback(&mut self, cookie: LONGLONG) {
+    pub fn init_registry_callback(&mut self, cookie: LARGE_INTEGER) {
         self.registry_callback = Some(cookie);
     }
 

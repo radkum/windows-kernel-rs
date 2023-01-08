@@ -5,22 +5,24 @@ mod flt_parameters;
 pub use flt_parameters::*;
 
 use core::ptr::null_mut;
-use winapi::km::wdm::{
-    DEVICE_TYPE, IO_STATUS_BLOCK, KPROCESSOR_MODE, PDRIVER_OBJECT, PETHREAD, PFILE_OBJECT,
+use winapi::{
+    km::wdm::{
+        DEVICE_TYPE, IO_STATUS_BLOCK, KPROCESSOR_MODE, PDRIVER_OBJECT, PETHREAD, PFILE_OBJECT,
+    },
+    shared::ntdef::{LIST_ENTRY, NTSTATUS, PVOID, UCHAR, ULONG, USHORT},
 };
-use winapi::shared::ntdef::{LIST_ENTRY, NTSTATUS, PVOID, UCHAR, ULONG, USHORT};
 
 #[link(name = "fltMgr")]
 extern "system" {
     pub fn FltRegisterFilter(
-        driver: PDRIVER_OBJECT,
-        registration: &FLT_REGISTRATION,
-        ret_filter: &mut PFLT_FILTER,
+        Driver: PDRIVER_OBJECT,
+        Registration: &FLT_REGISTRATION,
+        RetFilter: &mut PFLT_FILTER,
     ) -> NTSTATUS;
 
-    pub fn FltUnregisterFilter(filter: PFLT_FILTER) -> NTSTATUS;
+    pub fn FltUnregisterFilter(Filter: PFLT_FILTER) -> NTSTATUS;
 
-    pub fn FltStartFiltering(filter: PFLT_FILTER) -> NTSTATUS;
+    pub fn FltStartFiltering(Filter: PFLT_FILTER) -> NTSTATUS;
 }
 
 pub type FLT_REGISTRATION_FLAGS = ULONG;
@@ -32,30 +34,30 @@ pub type FLT_FILTER_UNLOAD_FLAGS = FLT_REGISTRATION_FLAGS;
 
 #[repr(C)]
 pub struct FLT_FILTER {
-    filler: [u8; 0x120],
+    Filler: [u8; 0x120],
 }
 pub type PFLT_FILTER = *mut FLT_FILTER;
 
-pub const FLT_REGISTRATION_VERSION: USHORT = 0x0203;
+pub const FLT_REGISTRATION_VERSION: u16 = 0x0203;
 
 #[repr(C)]
 pub struct FLT_REGISTRATION {
-    pub size: USHORT,
-    pub version: USHORT,
-    pub flags: FLT_REGISTRATION_FLAGS,
-    pub context_registration: PVOID,
-    pub operation_registration: PFLT_OPERATION_REGISTRATION,
-    pub filter_unload_callback: PFLT_FILTER_UNLOAD_CALLBACK,
-    pub instance_setup_callback: PFLT_INSTANCE_SETUP_CALLBACK,
-    pub instance_query_teardown_callback: PFLT_INSTANCE_QUERY_TEARDOWN_CALLBACK,
-    pub instance_teardown_start_callback: PFLT_INSTANCE_TEARDOWN_CALLBACK,
-    pub instance_teardown_complete_callback: PFLT_INSTANCE_TEARDOWN_CALLBACK,
-    pub generate_file_name_callback: PVOID,
-    pub normalize_namecomponent_callback: PVOID,
-    pub normalize_context_cleanup_callback: PVOID,
-    pub transaction_notification_callback: PVOID,
-    pub normalize_name_component_ex_callback: PVOID,
-    pub section_notification_callback: PVOID,
+    pub Size: USHORT,
+    pub Version: USHORT,
+    pub Flags: FLT_REGISTRATION_FLAGS,
+    pub ContextRegistration: PVOID, /*PFLT_CONTEXT_REGISTRATION*/
+    pub OperationRegistration: PFLT_OPERATION_REGISTRATION,
+    pub FilterUnloadCallback: PFLT_FILTER_UNLOAD_CALLBACK,
+    pub InstanceSetupCallback: PFLT_INSTANCE_SETUP_CALLBACK,
+    pub InstanceQueryTeardownCallback: PFLT_INSTANCE_QUERY_TEARDOWN_CALLBACK,
+    pub InstanceTeardownStartCallback: PFLT_INSTANCE_TEARDOWN_CALLBACK,
+    pub InstanceTeardownCompleteCallback: PFLT_INSTANCE_TEARDOWN_CALLBACK,
+    pub GenerateFileNameCallback: PVOID,
+    pub NormalizeNameComponentCallback: PVOID,
+    pub NormalizeContextCleanupCallback: PVOID,
+    pub TransactionNotificationCallback: PVOID,
+    pub NormalizeNameComponentExCallback: PVOID,
+    pub SectionNotificationCallback: PVOID,
 }
 pub type PFLT_REGISTRATION = *mut FLT_REGISTRATION;
 
@@ -74,20 +76,20 @@ pub enum FLT_PREOP_CALLBACK_STATUS {
 pub enum FLT_POSTOP_CALLBACK_STATUS {
     FLT_POSTOP_FINISHED_PROCESSING,
     FLT_POSTOP_MORE_PROCESSING_REQUIRED,
-    FLT_POSTOP_DISALLOW_FSFILTER_IO
+    FLT_POSTOP_DISALLOW_FSFILTER_IO,
 }
 
 pub type PFLT_PRE_OPERATION_CALLBACK = extern "system" fn(
-    data: &mut FLT_CALLBACK_DATA,
-    flt_objects: PFLT_RELATED_OBJECTS,
-    completion_context: *mut PVOID,
+    Data: &mut FLT_CALLBACK_DATA,
+    FltObjects: PFLT_RELATED_OBJECTS,
+    CompletionContext: *mut PVOID,
 ) -> FLT_PREOP_CALLBACK_STATUS;
 
 pub type PFLT_POST_OPERATION_CALLBACK = extern "system" fn(
-    data: &mut FLT_CALLBACK_DATA,
-    flt_objects: PFLT_RELATED_OBJECTS,
-    completion_context: PVOID,
-    flags: FLT_POST_OPERATION_FLAGS,
+    Data: &mut FLT_CALLBACK_DATA,
+    FltObjects: PFLT_RELATED_OBJECTS,
+    CompletionContext: PVOID,
+    Flags: FLT_POST_OPERATION_FLAGS,
 ) -> FLT_POSTOP_CALLBACK_STATUS;
 
 #[repr(C)]
@@ -100,11 +102,11 @@ pub union PFLT_OPERATION_CALLBACK_UNION {
 
 #[repr(C)]
 pub struct FLT_OPERATION_REGISTRATION {
-    major_function: UCHAR,
-    flags: FLT_REGISTRATION_FLAGS,
-    pre_operation: PFLT_OPERATION_CALLBACK_UNION,
-    post_operation: PFLT_OPERATION_CALLBACK_UNION,
-    reserved: PVOID,
+    MajorFunction: UCHAR,
+    Flags: FLT_REGISTRATION_FLAGS,
+    PreOperation: PFLT_OPERATION_CALLBACK_UNION,
+    PostOperation: PFLT_OPERATION_CALLBACK_UNION,
+    Reserved: PVOID,
 }
 pub type PFLT_OPERATION_REGISTRATION = *const FLT_OPERATION_REGISTRATION;
 
@@ -115,51 +117,59 @@ impl FLT_OPERATION_REGISTRATION {
 
     pub const fn new() -> Self {
         FLT_OPERATION_REGISTRATION {
-            major_function: 0,
-            flags: 0,
-            pre_operation: PFLT_OPERATION_CALLBACK_UNION {nullptr: null_mut()},
-            post_operation: PFLT_OPERATION_CALLBACK_UNION {nullptr: null_mut()},
-            reserved: null_mut(),
+            MajorFunction: 0,
+            Flags: 0,
+            PreOperation: PFLT_OPERATION_CALLBACK_UNION {
+                nullptr: null_mut(),
+            },
+            PostOperation: PFLT_OPERATION_CALLBACK_UNION {
+                nullptr: null_mut(),
+            },
+            Reserved: null_mut(),
         }
     }
 
     pub const fn set_major_function(&self, major_function: UCHAR) -> Self {
         FLT_OPERATION_REGISTRATION {
-            major_function,
-            flags: self.flags,
-            pre_operation: self.pre_operation,
-            post_operation: self.post_operation,
-            reserved: null_mut(),
+            MajorFunction: major_function,
+            Flags: self.Flags,
+            PreOperation: self.PreOperation,
+            PostOperation: self.PostOperation,
+            Reserved: null_mut(),
         }
     }
 
     pub const fn set_flags(&self, flags: FLT_REGISTRATION_FLAGS) -> Self {
         FLT_OPERATION_REGISTRATION {
-            major_function: self.major_function,
-            flags,
-            pre_operation: self.pre_operation,
-            post_operation: self.post_operation,
-            reserved: null_mut(),
+            MajorFunction: self.MajorFunction,
+            Flags: flags,
+            PreOperation: self.PreOperation,
+            PostOperation: self.PostOperation,
+            Reserved: null_mut(),
         }
     }
 
     pub const fn set_preop(&self, preop: PFLT_PRE_OPERATION_CALLBACK) -> Self {
         FLT_OPERATION_REGISTRATION {
-            major_function: self.major_function,
-            flags: self.flags,
-            pre_operation: PFLT_OPERATION_CALLBACK_UNION {preop_fn_ptr: preop},
-            post_operation: self.post_operation,
-            reserved: null_mut(),
+            MajorFunction: self.MajorFunction,
+            Flags: self.Flags,
+            PreOperation: PFLT_OPERATION_CALLBACK_UNION {
+                preop_fn_ptr: preop,
+            },
+            PostOperation: self.PostOperation,
+            Reserved: null_mut(),
         }
     }
 
     pub const fn set_postop(&self, postop: PFLT_POST_OPERATION_CALLBACK) -> Self {
         FLT_OPERATION_REGISTRATION {
-            major_function: self.major_function,
-            flags: self.flags,
-            pre_operation: self.pre_operation,
-            post_operation: PFLT_OPERATION_CALLBACK_UNION {postop_fn_ptr: postop},
-            reserved: null_mut(),
+            MajorFunction: self.MajorFunction,
+            Flags: self.Flags,
+            PreOperation: self.PreOperation,
+            PostOperation: PFLT_OPERATION_CALLBACK_UNION {
+                postop_fn_ptr: postop,
+            },
+            Reserved: null_mut(),
         }
     }
 }
@@ -168,14 +178,14 @@ pub type FLT_CALLBACK_DATA_FLAGS = ULONG;
 
 #[repr(C)]
 pub struct PFLT_CALLBACK_DATA_UNION_STRUCT {
-    queue_links: LIST_ENTRY,
-    queue_context: [PVOID; 2],
+    QueueLinks: LIST_ENTRY,
+    QueueContext: [PVOID; 2],
 }
 
 #[repr(C)]
 pub union PFLT_CALLBACK_DATA_UNION {
-    f1: ::core::mem::ManuallyDrop<PFLT_CALLBACK_DATA_UNION_STRUCT>,
-    f2: [PVOID; 4],
+    F1: ::core::mem::ManuallyDrop<PFLT_CALLBACK_DATA_UNION_STRUCT>,
+    F2: [PVOID; 4],
 }
 const _SIZE_CHECKER: [u8; 32] = [0; ::core::mem::size_of::<PFLT_CALLBACK_DATA_UNION>()];
 
@@ -183,26 +193,26 @@ pub type PFLT_INSTANCE = PVOID;
 
 #[repr(C)]
 pub struct FLT_IO_PARAMETER_BLOCK {
-    pub irp_flags: ULONG,
-    pub major_function: UCHAR,
-    pub minor_function: UCHAR,
-    pub operation_flags: UCHAR,
-    reserved: UCHAR,
-    pub target_file_object: PFILE_OBJECT,
-    pub target_instance: PFLT_INSTANCE,
-    pub parameters: FLT_PARAMETERS,
+    pub IrpFlags: ULONG,
+    pub MajorFunction: UCHAR,
+    pub MinorFunction: UCHAR,
+    pub OperationFlags: UCHAR,
+    Reserved: UCHAR,
+    pub TargetFileObject: PFILE_OBJECT,
+    pub TargetInstance: PFLT_INSTANCE,
+    pub Parameters: FLT_PARAMETERS,
 }
 pub type PFLT_IO_PARAMETER_BLOCK = *mut FLT_IO_PARAMETER_BLOCK;
 
 #[repr(C)]
 pub struct FLT_CALLBACK_DATA {
-    pub flags: FLT_CALLBACK_DATA_FLAGS,
-    pub thread: PETHREAD,
-    pub iopb: PFLT_IO_PARAMETER_BLOCK,
-    pub io_status: IO_STATUS_BLOCK,
-    pub tag_data: PVOID, /* PFLT_TAG_DATA_BUFFER */
-    pub field_union: PFLT_CALLBACK_DATA_UNION,
-    pub requestor_mode: KPROCESSOR_MODE,
+    pub Flags: FLT_CALLBACK_DATA_FLAGS,
+    pub Thread: PETHREAD,
+    pub Iopb: PFLT_IO_PARAMETER_BLOCK,
+    pub IoStatus: IO_STATUS_BLOCK,
+    pub RagData: PVOID, /* PFLT_TAG_DATA_BUFFER */
+    pub FieldUnion: PFLT_CALLBACK_DATA_UNION,
+    pub RequestorMode: KPROCESSOR_MODE,
 }
 pub type PFLT_CALLBACK_DATA = *mut FLT_CALLBACK_DATA;
 
@@ -211,22 +221,22 @@ const _SIZE_CHECKER2: [u8; 88] = [0; ::core::mem::size_of::<FLT_CALLBACK_DATA>()
 pub type PFLT_RELATED_OBJECTS = PVOID;
 
 pub type PFLT_FILTER_UNLOAD_CALLBACK =
-    extern "system" fn(flags: FLT_FILTER_UNLOAD_FLAGS) -> NTSTATUS;
+    extern "system" fn(Flags: FLT_FILTER_UNLOAD_FLAGS) -> NTSTATUS;
 
 pub type FLT_FILESYSTEM_TYPE = ULONG;
 pub type PFLT_INSTANCE_SETUP_CALLBACK = extern "system" fn(
-    flt_objects: PFLT_RELATED_OBJECTS,
-    flags: FLT_INSTANCE_SETUP_FLAGS,
-    volume_device_type: DEVICE_TYPE,
-    volume_filesystem_type: FLT_FILESYSTEM_TYPE,
+    FltObjects: PFLT_RELATED_OBJECTS,
+    Flags: FLT_INSTANCE_SETUP_FLAGS,
+    VolumeDeviceType: DEVICE_TYPE,
+    VolumeFilesystemType: FLT_FILESYSTEM_TYPE,
 ) -> NTSTATUS;
 
 pub type PFLT_INSTANCE_QUERY_TEARDOWN_CALLBACK = extern "system" fn(
-    flt_objects: PFLT_RELATED_OBJECTS,
-    reason: FLT_INSTANCE_QUERY_TEARDOWN_FLAGS,
+    FltObjects: PFLT_RELATED_OBJECTS,
+    Reason: FLT_INSTANCE_QUERY_TEARDOWN_FLAGS,
 ) -> NTSTATUS;
 
 pub type PFLT_INSTANCE_TEARDOWN_CALLBACK = extern "system" fn(
-    flt_objects: PFLT_RELATED_OBJECTS,
-    reason: FLT_INSTANCE_TEARDOWN_FLAGS,
+    FltObjects: PFLT_RELATED_OBJECTS,
+    Reason: FLT_INSTANCE_TEARDOWN_FLAGS,
 ) -> NTSTATUS;

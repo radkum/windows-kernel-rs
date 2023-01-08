@@ -4,81 +4,83 @@
 mod process_info_class;
 pub use process_info_class::*;
 
-use winapi::km::wdm::{PEPROCESS, PFILE_OBJECT};
-use winapi::shared::ntdef::{BOOLEAN, NTSTATUS, ULONG};
-
-pub type PVOID = *mut winapi::ctypes::c_void;
-pub type HANDLE = PVOID;
-pub type SIZE_T = usize;
 pub use crate::constants::*;
 use crate::wmd::CLIENT_ID;
-use kernel_string::UnicodeString;
+use kernel_string::UNICODE_STRING;
+use winapi::{
+    km::wdm::{PEPROCESS, PFILE_OBJECT},
+    shared::{
+        basetsd::SIZE_T,
+        ntdef::{BOOLEAN, HANDLE, NTSTATUS, PVOID, ULONG},
+    },
+};
+
+pub const REG_NT_POST_SET_VALUE_KEY: u32 = 16;
 
 extern "system" {
-    pub fn MmIsAddressValid(virtual_address: PVOID) -> bool;
+    pub fn MmIsAddressValid(VirtualAddress: PVOID) -> bool;
 
     pub fn PsGetCurrentProcessId() -> HANDLE;
 
     pub fn PsGetCurrentThreadId() -> HANDLE;
 
     pub fn PsSetCreateProcessNotifyRoutineEx(
-        notify_routine: PCREATE_PROCESS_NOTIFY_ROUTINE_EX,
-        remove: BOOLEAN,
+        NotifyRoutine: PCREATE_PROCESS_NOTIFY_ROUTINE_EX,
+        Remove: BOOLEAN,
     ) -> NTSTATUS;
 
-    pub fn PsSetCreateThreadNotifyRoutine(
-        notify_routine: PCREATE_THREAD_NOTIFY_ROUTINE,
-    ) -> NTSTATUS;
+    pub fn PsSetCreateThreadNotifyRoutine(NotifyRoutine: PCREATE_THREAD_NOTIFY_ROUTINE)
+        -> NTSTATUS;
 
     pub fn PsRemoveCreateThreadNotifyRoutine(
-        notify_routine: PCREATE_THREAD_NOTIFY_ROUTINE,
+        NotifyRoutine: PCREATE_THREAD_NOTIFY_ROUTINE,
     ) -> NTSTATUS;
 
-    pub fn PsSetLoadImageNotifyRoutine(notify_routine: PLOAD_IMAGE_NOTIFY_ROUTINE) -> NTSTATUS;
+    pub fn PsSetLoadImageNotifyRoutine(NotifyRoutine: PLOAD_IMAGE_NOTIFY_ROUTINE) -> NTSTATUS;
 
-    pub fn PsRemoveLoadImageNotifyRoutine(notify_routine: PLOAD_IMAGE_NOTIFY_ROUTINE) -> NTSTATUS;
+    pub fn PsRemoveLoadImageNotifyRoutine(NotifyRoutine: PLOAD_IMAGE_NOTIFY_ROUTINE) -> NTSTATUS;
 }
 
 #[repr(C)]
 pub struct PS_CREATE_NOTIFY_INFO {
-    pub size: SIZE_T,
-    pub flags: ULONG,
-    pub parent_process_id: HANDLE,
-    pub creating_thread_id: CLIENT_ID,
-    pub file_object: PFILE_OBJECT,
-    pub image_file_name: *mut UnicodeString,
-    pub command_line: *mut UnicodeString,
-    pub creation_status: NTSTATUS,
+    pub Size: SIZE_T,
+    pub Flags: ULONG,
+    pub ParentProcessId: HANDLE,
+    pub CreatingThreadId: CLIENT_ID,
+    pub FileObject: PFILE_OBJECT,
+    pub ImageFileName: *mut UNICODE_STRING,
+    pub CommandLine: *mut UNICODE_STRING,
+    pub CreationStatus: NTSTATUS,
 }
 
 pub type PPS_CREATE_NOTIFY_INFO = *mut PS_CREATE_NOTIFY_INFO;
 
 pub type PCREATE_PROCESS_NOTIFY_ROUTINE_EX =
-    extern "system" fn(process: PEPROCESS, process_id: HANDLE, create_info: PPS_CREATE_NOTIFY_INFO);
+    extern "system" fn(Process: PEPROCESS, ProcessId: HANDLE, CreateInfo: PPS_CREATE_NOTIFY_INFO);
 
 pub type PCREATE_THREAD_NOTIFY_ROUTINE =
-    extern "system" fn(process_id: HANDLE, thread_id: HANDLE, create: BOOLEAN);
+    extern "system" fn(ProcessId: HANDLE, ThreadId: HANDLE, Create: BOOLEAN);
 
 #[repr(C)]
 pub struct IMAGE_INFO {
-    pub properties: ULONG,
-    pub image_base: PVOID,
-    pub image_selector: ULONG,
-    pub image_size: SIZE_T,
-    pub image_section_number: ULONG,
+    pub Properties: ULONG,
+    pub ImageBase: PVOID,
+    pub ImageSelector: ULONG,
+    pub ImageSize: SIZE_T,
+    pub ImageSectionNumber: ULONG,
 }
 
 pub type PIMAGE_INFO = *mut IMAGE_INFO;
 
 pub type PLOAD_IMAGE_NOTIFY_ROUTINE = extern "system" fn(
-    full_image_name: *mut UnicodeString,
-    process_id: HANDLE,
-    image_info: PIMAGE_INFO,
+    FullImageName: *mut UNICODE_STRING,
+    ProcessId: HANDLE,
+    ImageInfo: PIMAGE_INFO,
 );
 
 #[repr(C)]
 pub struct FILE_DISPOSITION_INFORMATION {
-    pub delete_file: BOOLEAN,
+    pub DeleteFile: BOOLEAN,
 }
 
 pub type PFILE_DISPOSITION_INFORMATION = *mut FILE_DISPOSITION_INFORMATION;

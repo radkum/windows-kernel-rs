@@ -6,8 +6,7 @@
 extern crate alloc;
 
 use alloc::string::ToString;
-use core::ffi::c_void;
-use core::panic::PanicInfo;
+use core::{ffi::c_void, panic::PanicInfo};
 
 pub mod kernel_alloc;
 

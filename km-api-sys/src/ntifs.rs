@@ -1,27 +1,27 @@
-use winapi::km::wdm::{PEPROCESS, PETHREAD};
-use winapi::shared::ntdef::{NTSTATUS, ULONG};
-use winapi::um::winnt::ACCESS_MASK;
+use winapi::{
+    km::wdm::{PEPROCESS, PETHREAD},
+    shared::ntdef::{HANDLE, NTSTATUS, PVOID, ULONG},
+    um::winnt::ACCESS_MASK,
+};
 
 use crate::wmd::IoGetCurrentProcess;
 use winapi::km::wdm::KPROCESSOR_MODE;
 
-pub type PVOID = *mut winapi::ctypes::c_void;
-pub type HANDLE = PVOID;
-
 extern "system" {
-    pub fn PsLookupProcessByProcessId(process_id: HANDLE, process: *mut PEPROCESS) -> NTSTATUS;
+    pub fn PsLookupProcessByProcessId(ProcessId: HANDLE, Process: *mut PEPROCESS) -> NTSTATUS;
 
-    pub fn PsGetThreadProcess(thread: PETHREAD) -> PEPROCESS;
+    pub fn PsGetThreadProcess(Thread: PETHREAD) -> PEPROCESS;
 
     pub fn ObOpenObjectByPointer(
-        object: PVOID,
-        handle_attributes: ULONG,
-        passed_access_state: PVOID,
-        desired_access: ACCESS_MASK,
-        object_type: PVOID,
-        access_mode: KPROCESSOR_MODE,
-        handle: *mut HANDLE,
+        Object: PVOID,
+        HandleAttributes: ULONG,
+        PassedAccessState: PVOID,
+        DesiredAccess: ACCESS_MASK,
+        ObjectType: PVOID,
+        AccessMode: KPROCESSOR_MODE,
+        Handle: *mut HANDLE,
     ) -> NTSTATUS;
 }
 
+#[allow(non_upper_case_globals)]
 pub const PsGetCurrentProcess: unsafe extern "system" fn() -> PEPROCESS = IoGetCurrentProcess;

@@ -7,45 +7,51 @@ mod ioctl_code;
 mod item;
 
 /// kernel-init deliver a few elements (eg. panic implementation) necessary to run code in kernel
+#[allow(unused_imports)]
 use kernel_init;
 
-use alloc::collections::VecDeque;
-use alloc::string::ToString;
-use alloc::vec::Vec;
+use alloc::{collections::VecDeque, string::ToString, vec::Vec};
 use core::mem::forget;
 
-use winapi::km::wdm::{IoCompleteRequest, IoCreateDevice, IoCreateSymbolicLink, IoDeleteDevice, IoDeleteSymbolicLink, IoGetCurrentIrpStackLocation, DEVICE_OBJECT, DEVICE_TYPE, DRIVER_OBJECT, IRP, IRP_MJ, PDEVICE_OBJECT, PEPROCESS, IO_STACK_LOCATION, _IO_STACK_LOCATION_READ};
-use winapi::shared::ntdef::{BOOLEAN, FALSE, LONGLONG, NTSTATUS, TRUE, UNICODE_STRING};
-
-use winapi::shared::ntstatus::{
-    STATUS_INSUFFICIENT_RESOURCES, STATUS_INVALID_BUFFER_SIZE, STATUS_INVALID_DEVICE_REQUEST,
-    STATUS_SUCCESS, STATUS_UNSUCCESSFUL,
+use winapi::{
+    km::wdm::{
+        IoCompleteRequest, IoCreateDevice, IoCreateSymbolicLink, IoDeleteDevice,
+        IoDeleteSymbolicLink, IoGetCurrentIrpStackLocation, DEVICE_OBJECT, DEVICE_TYPE,
+        DRIVER_OBJECT, IO_STACK_LOCATION, IRP, IRP_MJ, PDEVICE_OBJECT, PEPROCESS,
+        _IO_STACK_LOCATION_READ,
+    },
+    shared::{
+        ntdef::{BOOLEAN, FALSE, HANDLE, NTSTATUS, PVOID, TRUE},
+        ntstatus::{
+            STATUS_INSUFFICIENT_RESOURCES, STATUS_INVALID_BUFFER_SIZE,
+            STATUS_INVALID_DEVICE_REQUEST, STATUS_SUCCESS, STATUS_UNSUCCESSFUL,
+        },
+    },
 };
 
-use kernel_fast_mutex::auto_lock::AutoLock;
-use kernel_fast_mutex::fast_mutex::FastMutex;
-use kernel_fast_mutex::locker::Locker;
+use kernel_fast_mutex::{auto_lock::AutoLock, fast_mutex::FastMutex, locker::Locker};
 
 use core::ptr::null_mut;
 use kernel_macros::{HandleToU32, NT_SUCCESS};
 use kernel_print::kernel_print;
-use kernel_string::{PUnicodeString, UnicodeString};
+use kernel_string::{PUNICODE_STRING, UNICODE_STRING};
 
-use km_api_sys::ntddk::{
-    PsGetCurrentProcessId, PsGetCurrentThreadId, PsRemoveCreateThreadNotifyRoutine,
-    PsRemoveLoadImageNotifyRoutine, PsSetCreateProcessNotifyRoutineEx,
-    PsSetCreateThreadNotifyRoutine, PsSetLoadImageNotifyRoutine, HANDLE, PIMAGE_INFO,
-    PPS_CREATE_NOTIFY_INFO, PS_CREATE_NOTIFY_INFO, PVOID, REG_NT_POST_SET_VALUE_KEY,
-};
-use km_api_sys::wmd::{
-    CmCallbackGetKeyObjectIDEx, CmCallbackReleaseKeyObjectIDEx, CmRegisterCallbackEx,
-    CmUnRegisterCallback, MmGetSystemAddressForMdlSafe, MDL, PREG_POST_OPERATION_INFORMATION,
-    PREG_SET_VALUE_KEY_INFORMATION,
+use km_api_sys::{
+    ntddk::{
+        PsGetCurrentProcessId, PsGetCurrentThreadId, PsRemoveCreateThreadNotifyRoutine,
+        PsRemoveLoadImageNotifyRoutine, PsSetCreateProcessNotifyRoutineEx,
+        PsSetCreateThreadNotifyRoutine, PsSetLoadImageNotifyRoutine, PIMAGE_INFO,
+        PPS_CREATE_NOTIFY_INFO, PS_CREATE_NOTIFY_INFO, REG_NT_POST_SET_VALUE_KEY,
+    },
+    wmd::{
+        CmCallbackGetKeyObjectIDEx, CmCallbackReleaseKeyObjectIDEx, CmRegisterCallbackEx,
+        CmUnRegisterCallback, MmGetSystemAddressForMdlSafe, LARGE_INTEGER, MDL,
+        PREG_POST_OPERATION_INFORMATION, PREG_SET_VALUE_KEY_INFORMATION,
+    },
 };
 use winapi::km::wdm::DEVICE_FLAGS::DO_DIRECT_IO;
 
-use crate::cleaner::Cleaner;
-use crate::item::ItemInfo;
+use crate::{cleaner::Cleaner, item::ItemInfo};
 
 use crate::ItemInfo::{
     ImageLoad, ProcessCreate, ProcessExit, RegistrySetValue, ThreadCreate, ThreadExit,
@@ -58,7 +64,7 @@ const MAX_ITEM_COUNT: usize = 256;
 
 static mut G_EVENTS: Option<VecDeque<ItemInfo>> = None;
 static mut G_MUTEX: FastMutex = FastMutex::new();
-static mut G_COOKIE: LONGLONG = 0;
+static mut G_COOKIE: LARGE_INTEGER = LARGE_INTEGER::new();
 
 #[no_mangle]
 pub unsafe extern "system" fn DriverEntry(
@@ -86,11 +92,11 @@ pub unsafe extern "system" fn DriverEntry(
     #[allow(unused_assignments)]
     let mut status = STATUS_SUCCESS;
 
-    let hello_world = UnicodeString::create("Hello World!");
+    let hello_world = UNICODE_STRING::create("Hello World!");
     kernel_print::kernel_println!("{}", hello_world.as_rust_string());
 
-    let dev_name = UnicodeString::from(DEVICE_NAME);
-    let sym_link = UnicodeString::from(SYM_LINK_NAME);
+    let dev_name = UNICODE_STRING::from(DEVICE_NAME);
+    let sym_link = UNICODE_STRING::from(SYM_LINK_NAME);
 
     let mut cleaner = Cleaner::new();
     let mut device_object: PDEVICE_OBJECT = null_mut();
@@ -163,7 +169,7 @@ pub unsafe extern "system" fn DriverEntry(
         }
 
         //--------------------REGISTRY NOTIFY-----------------------
-        let altitude = UnicodeString::create("7657.124");
+        let altitude = UNICODE_STRING::create("7657.124");
         status = CmRegisterCallbackEx(
             OnRegistryNotify as PVOID,
             &altitude,
@@ -196,7 +202,7 @@ extern "system" fn DriverUnload(driver: &mut DRIVER_OBJECT) {
     unsafe {
         IoDeleteDevice(driver.DeviceObject);
 
-        let sym_link = UnicodeString::create(SYM_LINK_NAME);
+        let sym_link = UNICODE_STRING::create(SYM_LINK_NAME);
         IoDeleteSymbolicLink(&sym_link.as_unicode_string());
 
         PsSetCreateProcessNotifyRoutineEx(OnProcessNotify, TRUE);
@@ -307,10 +313,10 @@ extern "system" fn OnProcessNotify(
             let create_info: &PS_CREATE_NOTIFY_INFO = &*create_info;
             let create_info: &PS_CREATE_NOTIFY_INFO = &*create_info;
 
-            let image_file_name = &*create_info.image_file_name;
+            let image_file_name = &*create_info.ImageFileName;
             ProcessCreate {
                 pid: HandleToU32!(process_id),
-                parent_pid: HandleToU32!(create_info.parent_process_id),
+                parent_pid: HandleToU32!(create_info.ParentProcessId),
                 command_line: image_file_name.as_rust_string(),
             }
         } else {
@@ -344,7 +350,7 @@ extern "system" fn OnThreadNotify(process_id: HANDLE, thread_id: HANDLE, create:
 }
 
 extern "system" fn OnImageLoadNotify(
-    full_image_name: PUnicodeString,
+    full_image_name: PUNICODE_STRING,
     process_id: HANDLE,
     image_info: PIMAGE_INFO,
 ) {
@@ -365,8 +371,8 @@ extern "system" fn OnImageLoadNotify(
         let image_info = &*image_info;
         let item = ImageLoad {
             pid: HandleToU32!(process_id),
-            load_address: image_info.image_base,
-            image_size: image_info.image_size,
+            load_address: image_info.ImageBase,
+            image_size: image_info.ImageSize,
             image_file_name: image_name,
         };
 
@@ -380,13 +386,13 @@ extern "system" fn OnRegistryNotify(_context: PVOID, arg1: PVOID, arg2: PVOID) -
         kernel_print!("RegNtPostSetValueKey");
         unsafe {
             let op_info = &*(arg2 as PREG_POST_OPERATION_INFORMATION);
-            if !NT_SUCCESS!(op_info.status) {
+            if !NT_SUCCESS!(op_info.Status) {
                 return STATUS_SUCCESS;
             }
 
-            let mut name: PUnicodeString = null_mut();
+            let mut name: PUNICODE_STRING = null_mut();
             let status =
-                CmCallbackGetKeyObjectIDEx(&G_COOKIE, op_info.object, null_mut(), &mut name, 0);
+                CmCallbackGetKeyObjectIDEx(&G_COOKIE, op_info.Object, null_mut(), &mut name, 0);
             if !NT_SUCCESS!(status) {
                 return STATUS_SUCCESS;
             }
@@ -402,17 +408,17 @@ extern "system" fn OnRegistryNotify(_context: PVOID, arg1: PVOID, arg2: PVOID) -
 
                 // filter out none-HKLM writes
                 if key_name.contains(registry_machine) {
-                    if op_info.pre_information.is_null() {
+                    if op_info.PreInformation.is_null() {
                         //something wrong
                         break;
                     }
 
-                    let pre_info = &*(op_info.pre_information as PREG_SET_VALUE_KEY_INFORMATION);
-                    let value_name = (*pre_info.value_name).as_rust_string();
+                    let pre_info = &*(op_info.PreInformation as PREG_SET_VALUE_KEY_INFORMATION);
+                    let value_name = (*pre_info.ValueName).as_rust_string();
                     let v = Vec::from_raw_parts(
-                        pre_info.data as *mut u8,
-                        pre_info.data_size as usize,
-                        pre_info.data_size as usize,
+                        pre_info.Data as *mut u8,
+                        pre_info.DataSize as usize,
+                        pre_info.DataSize as usize,
                     );
 
                     let item = RegistrySetValue {
@@ -420,7 +426,7 @@ extern "system" fn OnRegistryNotify(_context: PVOID, arg1: PVOID, arg2: PVOID) -
                         tid: HandleToU32!(PsGetCurrentThreadId()),
                         key_name,
                         value_name,
-                        data_type: pre_info.data_type,
+                        data_type: pre_info.DataType,
                         data: v.clone(),
                     };
 
