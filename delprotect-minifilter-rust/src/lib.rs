@@ -95,8 +95,8 @@ pub unsafe extern "system" fn DriverEntry(
 extern "system" fn DelProtectUnload(_flags: FLT_REGISTRATION_FLAGS) -> NTSTATUS {
     kernel_print::kernel_println!("delprotect_unload");
 
+    PAGED_CODE!();
     unsafe {
-        PAGED_CODE!();
         FltUnregisterFilter(G_FILTER_HANDLE);
     }
 
@@ -111,10 +111,7 @@ extern "system" fn DelProtectInstanceSetup(
     _volume_filesystem_type: FLT_FILESYSTEM_TYPE,
 ) -> NTSTATUS {
     kernel_print::kernel_println!("DelProtectInstanceSetup");
-
-    //unsafe {
     PAGED_CODE!();
-    //}
     STATUS_SUCCESS
 }
 
@@ -125,8 +122,8 @@ extern "system" fn DelProtectInstanceQueryTeardown(
 ) -> NTSTATUS {
     kernel_print::kernel_println!("DelProtectInstanceQueryTeardown");
 
+    PAGED_CODE!();
     unsafe {
-        PAGED_CODE!();
         FltUnregisterFilter(G_FILTER_HANDLE);
     }
     kernel_print::kernel_println!("DelProtectInstanceQueryTeardown SUCCESS");
@@ -140,9 +137,7 @@ extern "system" fn DelProtectInstanceTeardownStart(
 ) -> NTSTATUS {
     kernel_print::kernel_println!("DelProtectInstanceTeardownStart");
 
-    //unsafe {
     PAGED_CODE!();
-    //}
     kernel_print::kernel_println!("DelProtectInstanceTeardownStart SUCCESS");
     STATUS_SUCCESS
 }
@@ -154,9 +149,7 @@ extern "system" fn DelProtectInstanceTeardownComplete(
 ) -> NTSTATUS {
     kernel_print::kernel_println!("DelProtectInstanceTeardownComplete");
 
-    //unsafe {
     PAGED_CODE!();
-    //}
     kernel_print::kernel_println!("DelProtectInstanceTeardownComplete SUCCESS");
     STATUS_SUCCESS
 }

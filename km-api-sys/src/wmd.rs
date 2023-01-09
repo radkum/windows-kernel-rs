@@ -3,6 +3,7 @@
 
 pub const FILE_DELETE_ON_CLOSE: u32 = 0x00001000;
 
+use crate::{intrinsics::ReadCR8, ntddk::PROCESSINFOCLASS};
 use core::{mem, ptr::null_mut};
 use winapi::{
     km::{
@@ -20,8 +21,6 @@ use winapi::{
         },
     },
 };
-
-use crate::ntddk::PROCESSINFOCLASS;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -105,10 +104,8 @@ extern "system" {
 }
 
 pub type KIRQL = UCHAR;
-
-#[link(name = "hal")]
-extern "system" {
-    pub fn KeGetCurrentIrql() -> KIRQL;
+pub unsafe fn KeGetCurrentIrql() -> KIRQL {
+    ReadCR8() as KIRQL
 }
 
 pub unsafe fn ExInitializeFastMutex(Mutex: &mut FAST_MUTEX) {

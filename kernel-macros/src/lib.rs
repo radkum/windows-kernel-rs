@@ -25,9 +25,11 @@ macro_rules! HandleToU32 {
 #[macro_export]
 macro_rules! PAGED_CODE {
     () => {
-        // if KeGetCurrentIrql() > 1/*APC_LEVEL*/
-        // {
-        //     return STATUS_UNSUCCESSFUL;
-        // }
+        unsafe {
+            if u64::from(km_api_sys::wmd::KeGetCurrentIrql()) > km_api_sys::wmd::APC_LEVEL
+            {
+                return winapi::shared::ntstatus::STATUS_UNSUCCESSFUL;
+            }
+        }
     };
 }
