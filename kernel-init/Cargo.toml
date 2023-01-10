@@ -7,3 +7,7 @@ edition = "2021"
 
 [dependencies]
 km-api-sys = { path = "../km-api-sys" }
+
+[features]
+default = []
+alloc_panic = []

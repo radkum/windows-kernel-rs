@@ -123,7 +123,7 @@ pub unsafe extern "system" fn DriverEntry(
         (*device_object).Flags |= DO_DIRECT_IO as u32;
 
         //--------------------SYMLINK-----------------------
-        status = IoCreateSymbolicLink(&sym_link.as_unicode_string(), &dev_name.as_unicode_string());
+        status = IoCreateSymbolicLink(&sym_link.as_ntdef_unicode(), &dev_name.as_ntdef_unicode());
 
         if NT_SUCCESS!(status) {
             cleaner.init_symlink(&sym_link);
@@ -203,7 +203,7 @@ extern "system" fn DriverUnload(driver: &mut DRIVER_OBJECT) {
         IoDeleteDevice(driver.DeviceObject);
 
         let sym_link = UNICODE_STRING::create(SYM_LINK_NAME);
-        IoDeleteSymbolicLink(&sym_link.as_unicode_string());
+        IoDeleteSymbolicLink(&sym_link.as_ntdef_unicode());
 
         PsSetCreateProcessNotifyRoutineEx(OnProcessNotify, TRUE);
 

@@ -64,7 +64,7 @@ impl Cleaner {
             }
 
             if let Some(sym_link) = self.sym_link {
-                IoDeleteSymbolicLink(&(*sym_link).as_unicode_string());
+                IoDeleteSymbolicLink(&(*sym_link).as_ntdef_unicode());
             }
 
             if let Some(routine) = self.create_process_callback {

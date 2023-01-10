@@ -71,7 +71,7 @@ impl UNICODE_STRING {
         UNICODE_STRING::from(buffer.as_bytes())
     }
 
-    pub fn as_unicode_string(&self) -> ntdef::UNICODE_STRING {
+    pub fn as_ntdef_unicode(&self) -> ntdef::UNICODE_STRING {
         ntdef::UNICODE_STRING {
             Length: self.Length,
             MaximumLength: self.MaximumLength,

@@ -13,6 +13,7 @@ unsafe impl GlobalAlloc for KernelAlloc {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let pool = ExAllocatePool2(POOL_FLAG_PAGED, layout.size(), POOL_TAG);
 
+        #[cfg(feature = "alloc_panic")]
         if pool.is_null() {
             handle_alloc_error(layout);
         }
