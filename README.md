@@ -5,7 +5,7 @@ sysmon-driver-rust - rust driver based on https://github.com/zodiacon/windowsker
 Some ideas taken from:  [Writing a kernel driver with Rust.](https://not-matthias.github.io/kernel-driver-with-rust/)
 
 todo:
-- change each allocation to try_reserve
+- upgrade delprotect to protect other processes than cmd
 - check a book windowskernelprogramming2e and upgrade driver and minifilter
 - create a Firewall, Antiransomware or kernel hook engine in Rust
 

@@ -243,6 +243,11 @@ unsafe fn IsDeleteAllowed(h_process: HANDLE) -> bool {
     let process_name =
         ExAllocatePool2(POOL_FLAG_PAGED, process_name_size, POOL_TAG) as PUNICODE_STRING;
 
+    if process_name.is_null() {
+        kernel_print::kernel_println!("fail to reserve a {} bytes of memory", process_name_size);
+        return true;
+    }
+
     let mut return_length: ULONG = 0;
     let status = ZwQueryInformationProcess(
         h_process,

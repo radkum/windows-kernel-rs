@@ -1,6 +1,6 @@
 //it must be defined in lib.rs
 //#![feature(alloc_error_handler)]
-
+#[allow(unused_imports)]
 use alloc::alloc::handle_alloc_error;
 use core::alloc::{GlobalAlloc, Layout};
 use km_api_sys::ntoskrnl::{ExAllocatePool2, ExFreePool, POOL_FLAG_PAGED};

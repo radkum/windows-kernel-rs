@@ -75,10 +75,17 @@ pub unsafe extern "system" fn DriverEntry(
 
     G_MUTEX.Init();
 
-    let events = VecDeque::new();
+    let mut events = VecDeque::new();
 
-    //todo try reserve
-    //events.try_reserve(MAX_ITEM_COUNT);
+    if let Err(e) = events.try_reserve_exact(MAX_ITEM_COUNT) {
+        kernel_print::kernel_println!(
+            "fail to reserve a {} bytes of memory. Err: {:?}",
+            ::core::mem::size_of::<ItemInfo>() * MAX_ITEM_COUNT,
+            e
+        );
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
     G_EVENTS = Some(events);
 
     driver.DriverUnload = Some(DriverUnload);
