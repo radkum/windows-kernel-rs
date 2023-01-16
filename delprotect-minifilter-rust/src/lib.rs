@@ -2,7 +2,10 @@
 #![allow(non_snake_case)]
 extern crate alloc;
 
+use alloc::{collections::VecDeque, string::String};
 use core::ptr::null_mut;
+use kernel_fast_mutex::{auto_lock::AutoLock, fast_mutex::FastMutex};
+use kernel_fast_mutex::locker::Locker;
 
 /// kernel-init deliver a few elements (eg. panic implementation) necessary to run code in kernel
 #[allow(unused_imports)]
@@ -15,17 +18,24 @@ use km_api_sys::{
     flt_kernel::*,
     ntddk::{PFILE_DISPOSITION_INFORMATION, PROCESSINFOCLASS},
     ntifs::{ObOpenObjectByPointer, PsGetThreadProcess},
-    ntoskrnl::{ExAllocatePool2, POOL_FLAG_PAGED},
+    ntoskrnl::{ExAllocatePool2, ExFreePoolWithTag, POOL_FLAG_PAGED},
     wmd::{NtCurrentProcess, ZwClose, ZwQueryInformationProcess, FILE_DELETE_ON_CLOSE},
 };
 use winapi::{
     km::wdm::{DEVICE_TYPE, DRIVER_OBJECT, KPROCESSOR_MODE},
     shared::{
         ntdef::{HANDLE, NTSTATUS, OBJ_KERNEL_HANDLE, PVOID, ULONG, USHORT},
-        ntstatus::{STATUS_ACCESS_DENIED, STATUS_SUCCESS},
+        ntstatus::{STATUS_ACCESS_DENIED, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS},
     },
 };
 
+const MAX_ITEM_COUNT: usize = 32;
+
+const DEVICE_NAME: &str = "\\Device\\DelProtect";
+const SYM_LINK_NAME: &str = "\\??\\DelProtect";
+
+static mut G_PROCESS_NAMES: Option<VecDeque<String>> = None;
+static mut G_MUTEX: FastMutex = FastMutex::new();
 static mut G_FILTER_HANDLE: PFLT_FILTER = null_mut();
 
 const CALLBACKS: &'static [FLT_OPERATION_REGISTRATION] = {
@@ -66,10 +76,28 @@ pub unsafe extern "system" fn DriverEntry(
     driver: &mut DRIVER_OBJECT,
     _path: *const UNICODE_STRING,
 ) -> NTSTATUS {
-    kernel_print::kernel_println!("START");
+    kernel_print::kernel_println!("START DelProtect");
 
     let hello_world = UNICODE_STRING::create("Hello World!");
     kernel_print::kernel_println!("{}", hello_world.as_rust_string());
+
+    //init mutex
+    G_MUTEX.Init();
+
+    //init processes vector
+    let mut events = VecDeque::new();
+    if let Err(e) = events.try_reserve_exact(MAX_ITEM_COUNT) {
+        kernel_print::kernel_println!(
+            "fail to reserve a {} bytes of memory. Err: {:?}",
+            ::core::mem::size_of::<String>() * MAX_ITEM_COUNT,
+            e
+        );
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    G_PROCESS_NAMES = Some(events);
+
+    //temporary for cmd
+    push_item_thread_safe("\\cmd.exe");
 
     #[allow(unused_assignments)]
     let mut status = STATUS_SUCCESS;
@@ -248,6 +276,7 @@ unsafe fn IsDeleteAllowed(h_process: HANDLE) -> bool {
         return true;
     }
 
+    let mut delete_allowed = true;
     let mut return_length: ULONG = 0;
     let status = ZwQueryInformationProcess(
         h_process,
@@ -268,16 +297,40 @@ unsafe fn IsDeleteAllowed(h_process: HANDLE) -> bool {
         let rust_process_name = process_name.as_rust_string();
         kernel_print::kernel_println!("Delete operation from {}", rust_process_name);
 
-        if process_name.Length == 0 {
-            return true;
-        }
-
-        if rust_process_name.contains("\\System32\\cmd.exe")
-            || rust_process_name.contains("\\SysWOW64\\cmd.exe")
-        {
-            return false;
+        if process_name.Length != 0 {
+            let _locker = AutoLock::new(&mut G_MUTEX);
+            if let Some(process_names) = &G_PROCESS_NAMES {
+                for name in process_names {
+                    if rust_process_name.contains(name) {
+                        delete_allowed = false;
+                        break;
+                    }
+                }
+            }
         }
     }
 
-    true
+    ExFreePoolWithTag(process_name as PVOID, POOL_TAG);
+
+    delete_allowed
+}
+
+unsafe fn push_item_thread_safe(process_name: &str) {
+    let mut p_name = String::new();
+    if let Err(e) = p_name.try_reserve_exact(process_name.len()) {
+        kernel_print::kernel_println!(
+            "fail to reserve a {} bytes of memory. Err: {:?}",
+            process_name.len(),
+            e
+        );
+        return;
+    }
+    p_name.push_str(process_name);
+    let _locker = AutoLock::new(&mut G_MUTEX);
+    if let Some(process_names) = &mut G_PROCESS_NAMES {
+        if process_names.len() >= MAX_ITEM_COUNT {
+            process_names.pop_front();
+        }
+        process_names.push_back(p_name);
+    }
 }
