@@ -1,5 +1,7 @@
 #![allow(unused)]
 
+use winapi::shared::ntdef::PVOID;
+
 #[repr(C)]
 pub enum PoolType {
     NonPagedPool,
@@ -18,6 +20,6 @@ extern "system" {
     pub fn ExAllocatePoolWithTag(PoolType: PoolType, NumberOfBytes: usize, Tag: u32) -> *mut u64;
     pub fn ExAllocatePool2(PoolType: PoolFlags, NumberOfBytes: usize, Tag: u32) -> *mut u64;
 
-    pub fn ExFreePool(Pool: u64);
-    pub fn ExFreePoolWithTag(Pool: u64, Tag: u32);
+    pub fn ExFreePool(Pool: PVOID);
+    pub fn ExFreePoolWithTag(Pool: PVOID, Tag: u32);
 }
