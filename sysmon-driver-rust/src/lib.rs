@@ -57,8 +57,8 @@ use crate::ItemInfo::{
     ImageLoad, ProcessCreate, ProcessExit, RegistrySetValue, ThreadCreate, ThreadExit,
 };
 
-const DEVICE_NAME: &str = "\\Device\\Zero";
-const SYM_LINK_NAME: &str = "\\??\\Zero";
+const DEVICE_NAME: &str = "\\Device\\SysMon";
+const SYM_LINK_NAME: &str = "\\??\\SysMon";
 
 const MAX_ITEM_COUNT: usize = 256;
 
