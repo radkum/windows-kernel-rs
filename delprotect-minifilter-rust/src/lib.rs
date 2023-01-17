@@ -1,11 +1,14 @@
 #![no_std]
 #![allow(non_snake_case)]
+
+mod cleaner;
+mod ioctl_code;
+
 extern crate alloc;
 
 use alloc::{collections::VecDeque, string::String};
 use core::ptr::null_mut;
-use kernel_fast_mutex::{auto_lock::AutoLock, fast_mutex::FastMutex};
-use kernel_fast_mutex::locker::Locker;
+use kernel_fast_mutex::{auto_lock::AutoLock, fast_mutex::FastMutex, locker::Locker};
 
 /// kernel-init deliver a few elements (eg. panic implementation) necessary to run code in kernel
 #[allow(unused_imports)]
@@ -24,8 +27,20 @@ use km_api_sys::{
 use winapi::{
     km::wdm::{DEVICE_TYPE, DRIVER_OBJECT, KPROCESSOR_MODE},
     shared::{
-        ntdef::{HANDLE, NTSTATUS, OBJ_KERNEL_HANDLE, PVOID, ULONG, USHORT},
+        ntdef::{FALSE, HANDLE, NTSTATUS, OBJ_KERNEL_HANDLE, PVOID, ULONG, USHORT},
         ntstatus::{STATUS_ACCESS_DENIED, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS},
+    },
+};
+
+use crate::cleaner::Cleaner;
+use winapi::{
+    km::wdm::{
+        IoCompleteRequest, IoCreateDevice, IoCreateSymbolicLink, IoDeleteDevice,
+        IoDeleteSymbolicLink, IoGetCurrentIrpStackLocation, DEVICE_OBJECT, IRP, IRP_MJ,
+        PDEVICE_OBJECT,
+    },
+    shared::ntstatus::{
+        STATUS_INVALID_DEVICE_REQUEST, STATUS_INVALID_PARAMETER, STATUS_TOO_MANY_NAMES,
     },
 };
 
@@ -70,6 +85,9 @@ const FILTER_REGISTRATION: FLT_REGISTRATION = FLT_REGISTRATION {
     SectionNotificationCallback: null_mut(),
 };
 
+/*************************************************************************
+    MiniFilter initialization and unload routines.
+*************************************************************************/
 #[link_section = "INIT"]
 #[no_mangle]
 pub unsafe extern "system" fn DriverEntry(
@@ -81,7 +99,7 @@ pub unsafe extern "system" fn DriverEntry(
     let hello_world = UNICODE_STRING::create("Hello World!");
     kernel_print::kernel_println!("{}", hello_world.as_rust_string());
 
-    //init mutex
+    //--------------------GLOBALS-----------------------
     G_MUTEX.Init();
 
     //init processes vector
@@ -96,24 +114,69 @@ pub unsafe extern "system" fn DriverEntry(
     }
     G_PROCESS_NAMES = Some(events);
 
-    //temporary for cmd
-    push_item_thread_safe("\\cmd.exe");
 
-    #[allow(unused_assignments)]
+    //--------------------INIT VARIABLES-----------------------
     let mut status = STATUS_SUCCESS;
-    kernel_print::kernel_println!("status: {}, G_FILTER_HANDLE: {:p}", status, G_FILTER_HANDLE);
-    status = FltRegisterFilter(driver, &FILTER_REGISTRATION, &mut G_FILTER_HANDLE);
-    kernel_print::kernel_println!(
-        "after FltRegisterFilter: {}, G_FILTER_HANDLE: {:p}",
-        status,
-        G_FILTER_HANDLE
-    );
-    if NT_SUCCESS!(status) {
-        status = FltStartFiltering(G_FILTER_HANDLE);
-        kernel_print::kernel_println!("after FltStartFiltering: {}", status);
-        if !NT_SUCCESS!(status) {
-            FltUnregisterFilter(G_FILTER_HANDLE);
+
+    let dev_name = UNICODE_STRING::from(DEVICE_NAME);
+    let sym_link = UNICODE_STRING::from(SYM_LINK_NAME);
+
+    let mut cleaner = Cleaner::new();
+    let mut device_object: PDEVICE_OBJECT = null_mut();
+
+    loop {
+        //--------------------DEVICE-----------------------
+        status = IoCreateDevice(
+            driver,
+            0,
+            dev_name.as_ptr(),
+            DEVICE_TYPE::FILE_DEVICE_UNKNOWN,
+            0,
+            FALSE,
+            &mut device_object,
+        );
+
+        if NT_SUCCESS!(status) {
+            cleaner.init_device(device_object);
+        } else {
+            kernel_print::kernel_println!("failed to create device 0x{:08x}", status);
+            break;
         }
+
+        //--------------------SYMLINK-----------------------
+        status = IoCreateSymbolicLink(&sym_link.as_ntdef_unicode(), &dev_name.as_ntdef_unicode());
+
+        if NT_SUCCESS!(status) {
+            cleaner.init_symlink(&sym_link);
+        } else {
+            kernel_print::kernel_println!("failed to create sym_link 0x{:08x}", status);
+            break;
+        }
+
+        //--------------------FILTER_HANDLE-----------------------
+        status = FltRegisterFilter(driver, &FILTER_REGISTRATION, &mut G_FILTER_HANDLE);
+
+        if NT_SUCCESS!(status) {
+            cleaner.init_filter_handle(G_FILTER_HANDLE);
+        } else {
+            kernel_print::kernel_println!("failed to create sym_link 0x{:08x}", status);
+            break;
+        }
+
+        //--------------------DISPATCH_ROUTINES-----------------------
+        driver.DriverUnload = Some(DelProtectUnloadDriver);
+        driver.MajorFunction[IRP_MJ::CREATE as usize] = Some(DispatchCreateClose);
+        driver.MajorFunction[IRP_MJ::CLOSE as usize] = Some(DispatchCreateClose);
+        driver.MajorFunction[IRP_MJ::DEVICE_CONTROL as usize] = Some(DispatchDeviceControl);
+
+        status = FltStartFiltering(G_FILTER_HANDLE);
+        break;
+    }
+
+    if NT_SUCCESS!(status) {
+        kernel_print::kernel_println!("SUCCESS");
+    } else {
+        cleaner.clean();
     }
 
     kernel_print::kernel_println!("SUCCESS: {}", status);
@@ -138,7 +201,7 @@ extern "system" fn DelProtectInstanceSetup(
     _volume_device_type: DEVICE_TYPE,
     _volume_filesystem_type: FLT_FILESYSTEM_TYPE,
 ) -> NTSTATUS {
-    kernel_print::kernel_println!("DelProtectInstanceSetup");
+    //kernel_print::kernel_println!("DelProtectInstanceSetup");
     PAGED_CODE!();
     STATUS_SUCCESS
 }
@@ -148,13 +211,13 @@ extern "system" fn DelProtectInstanceQueryTeardown(
     _flt_objects: PFLT_RELATED_OBJECTS,
     _flags: FLT_INSTANCE_QUERY_TEARDOWN_FLAGS,
 ) -> NTSTATUS {
-    kernel_print::kernel_println!("DelProtectInstanceQueryTeardown");
+    //kernel_print::kernel_println!("DelProtectInstanceQueryTeardown");
 
     PAGED_CODE!();
     unsafe {
         FltUnregisterFilter(G_FILTER_HANDLE);
     }
-    kernel_print::kernel_println!("DelProtectInstanceQueryTeardown SUCCESS");
+    //kernel_print::kernel_println!("DelProtectInstanceQueryTeardown SUCCESS");
     STATUS_SUCCESS
 }
 
@@ -163,10 +226,10 @@ extern "system" fn DelProtectInstanceTeardownStart(
     _flt_objects: PFLT_RELATED_OBJECTS,
     _flags: FLT_INSTANCE_TEARDOWN_FLAGS,
 ) -> NTSTATUS {
-    kernel_print::kernel_println!("DelProtectInstanceTeardownStart");
+    //kernel_print::kernel_println!("DelProtectInstanceTeardownStart");
 
     PAGED_CODE!();
-    kernel_print::kernel_println!("DelProtectInstanceTeardownStart SUCCESS");
+    //kernel_print::kernel_println!("DelProtectInstanceTeardownStart SUCCESS");
     STATUS_SUCCESS
 }
 
@@ -175,10 +238,10 @@ extern "system" fn DelProtectInstanceTeardownComplete(
     _flt_objects: PFLT_RELATED_OBJECTS,
     _flags: FLT_INSTANCE_TEARDOWN_FLAGS,
 ) -> NTSTATUS {
-    kernel_print::kernel_println!("DelProtectInstanceTeardownComplete");
+    //kernel_print::kernel_println!("DelProtectInstanceTeardownComplete");
 
     PAGED_CODE!();
-    kernel_print::kernel_println!("DelProtectInstanceTeardownComplete SUCCESS");
+    //kernel_print::kernel_println!("DelProtectInstanceTeardownComplete SUCCESS");
     STATUS_SUCCESS
 }
 
@@ -301,8 +364,11 @@ unsafe fn IsDeleteAllowed(h_process: HANDLE) -> bool {
             let _locker = AutoLock::new(&mut G_MUTEX);
             if let Some(process_names) = &G_PROCESS_NAMES {
                 for name in process_names {
+                    kernel_print::kernel_println!("process_names {:?}", name.as_bytes());
+                    kernel_print::kernel_println!("rust_process_name {:?}", rust_process_name.as_bytes());
                     if rust_process_name.contains(name) {
                         delete_allowed = false;
+                        kernel_print::kernel_println!("DELETE BLOCK ");
                         break;
                     }
                 }
@@ -315,6 +381,103 @@ unsafe fn IsDeleteAllowed(h_process: HANDLE) -> bool {
     delete_allowed
 }
 
+/*************************************************************************
+                    Dispatch  routines.
+*************************************************************************/
+extern "system" fn DelProtectUnloadDriver(driver: &mut DRIVER_OBJECT) {
+    kernel_print::kernel_println!("rust_unload");
+    unsafe {
+        IoDeleteDevice(driver.DeviceObject);
+
+        let sym_link = UNICODE_STRING::create(SYM_LINK_NAME);
+        IoDeleteSymbolicLink(&sym_link.as_ntdef_unicode());
+    }
+}
+
+extern "system" fn DispatchCreateClose(_driver: &mut DEVICE_OBJECT, irp: &mut IRP) -> NTSTATUS {
+    complete_irp_success(irp)
+}
+
+extern "system" fn DispatchDeviceControl(_driver: &mut DEVICE_OBJECT, irp: &mut IRP) -> NTSTATUS {
+    unsafe {
+        let stack = IoGetCurrentIrpStackLocation(irp);
+        let device_io = (*stack).Parameters.DeviceIoControl();
+
+        kernel_print::kernel_println!("device_io.IoControlCode: {} ", device_io.IoControlCode);
+        match device_io.IoControlCode {
+            ioctl_code::IOCTL_DELPROTECT_ADD_EXE => {
+                kernel_print::kernel_println!("IOCTL_DELPROTECT_ADD_EXE ");
+                let name: *mut u16 = *irp.AssociatedIrp.SystemBuffer() as PVOID as *mut u16;
+                if name.is_null() {
+                    return STATUS_INVALID_PARAMETER;
+                }
+
+                let name_len_in_bytes = device_io.InputBufferLength as usize;
+                let name_len  =  {
+                    let name_len = name_len_in_bytes / ::core::mem::size_of::<u16>();
+
+                    if *name.offset(name_len as isize - 1) == 0 {
+                        name_len - 1
+                    } else {
+                        name_len
+                    }
+                };
+
+                let buffer = core::slice::from_raw_parts::<u16>(
+                    name,
+                    name_len,
+                );
+                let proc_name = String::from_utf16_lossy(buffer);
+
+                kernel_print::kernel_println!("proc_name: {}", proc_name);
+
+                push_item_thread_safe(&proc_name);
+            },
+            ioctl_code::IOCTL_DELPROTECT_CLEAR => {
+                kernel_print::kernel_println!("before lock ");
+                let _locker = AutoLock::new(&mut G_MUTEX);
+                kernel_print::kernel_println!("after lock");
+                if let Some(events) = &mut G_PROCESS_NAMES {
+                    kernel_print::kernel_println!("before clear ");
+                    events.clear();
+                    kernel_print::kernel_println!("after clear ");
+                }
+            },
+            _ => {
+                kernel_print::kernel_println!("IOCTL_ other ");
+                return complete_irp_with_status(irp, STATUS_INVALID_DEVICE_REQUEST);
+            },
+        }
+    }
+
+    complete_irp_success(irp)
+}
+
+/*************************************************************************
+                    IRP functions
+*************************************************************************/
+fn complete_irp_with_status(irp: &mut IRP, status: NTSTATUS) -> NTSTATUS {
+    complete_irp(irp, status, 0)
+}
+
+fn complete_irp_success(irp: &mut IRP) -> NTSTATUS {
+    complete_irp_with_status(irp, STATUS_SUCCESS)
+}
+
+fn complete_irp(irp: &mut IRP, status: NTSTATUS, info: usize) -> NTSTATUS {
+    unsafe {
+        let s = irp.IoStatus.__bindgen_anon_1.Status_mut();
+        *s = status;
+        irp.IoStatus.Information = info;
+        IoCompleteRequest(irp, 0);
+    }
+
+    status
+}
+
+/*************************************************************************
+                    Thread safe operations.
+*************************************************************************/
 unsafe fn push_item_thread_safe(process_name: &str) {
     let mut p_name = String::new();
     if let Err(e) = p_name.try_reserve_exact(process_name.len()) {

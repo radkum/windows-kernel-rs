@@ -65,6 +65,7 @@ pub struct UNICODE_STRING {
     pub ptr: *const u16,
 }
 pub type PUNICODE_STRING = *mut UNICODE_STRING;
+pub type PCUNICODE_STRING = *const UNICODE_STRING;
 
 impl UNICODE_STRING {
     pub fn create(buffer: &str) -> Self {
