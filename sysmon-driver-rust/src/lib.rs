@@ -232,7 +232,7 @@ extern "system" fn DispatchDeviceControl(_driver: &mut DEVICE_OBJECT, irp: &mut 
         let device_io = (*stack).Parameters.DeviceIoControl();
 
         match device_io.IoControlCode {
-            IOCTL_REQUEST => kernel_print::kernel_println!("device control success"),
+            ioctl_code::IOCTL_REQUEST => kernel_print::kernel_println!("device control success"),
             _ => {
                 return complete_irp_with_status(irp, STATUS_INVALID_DEVICE_REQUEST);
             },
