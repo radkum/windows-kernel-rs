@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::PVOID;
 use alloc::{string::String, vec::Vec};
 

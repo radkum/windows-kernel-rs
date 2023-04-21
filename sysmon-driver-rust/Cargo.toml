@@ -15,7 +15,6 @@ kernel-string   = { path = "../kernel-string"}
 kernel-macros   = { path = "../kernel-macros"}
 kernel-fast-mutex   = { path = "../kernel-fast-mutex"}
 kernel-init = { path = "../kernel-init"}
-#kernel-init = { path = "../kernel-init", features = ["alloc_panic"]}
 
 [dependencies.winapi]
 git = "https://github.com/Trantect/winapi-rs.git"
