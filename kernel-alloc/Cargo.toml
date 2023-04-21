@@ -1,5 +1,5 @@
 [package]
-name = "kernel-init"
+name = "kernel-alloc"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,8 +7,8 @@ edition = "2021"
 
 [dependencies]
 km-api-sys = { path = "../km-api-sys" }
-kernel-alloc = { path = "../kernel-alloc"}
 
 [features]
-default = []
+default = ["alloc_panic", "paged_pool"]
 alloc_panic = []
+paged_pool = []

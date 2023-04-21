@@ -8,8 +8,6 @@ extern crate alloc;
 use alloc::string::ToString;
 use core::{ffi::c_void, panic::PanicInfo};
 
-pub mod kernel_alloc;
-
 #[cfg(not(test))]
 #[global_allocator]
 static GLOBAL: kernel_alloc::KernelAlloc = kernel_alloc::KernelAlloc;
