@@ -28,12 +28,12 @@ use winapi::{
         },
     },
 };
+use kernel_log::KernelLogger;
 
 use kernel_fast_mutex::{auto_lock::AutoLock, fast_mutex::FastMutex, locker::Locker};
 
 use core::ptr::null_mut;
 use kernel_macros::{HandleToU32, NT_SUCCESS};
-use kernel_print::kernel_print;
 use kernel_string::{PUNICODE_STRING, UNICODE_STRING};
 
 use km_api_sys::{
@@ -49,6 +49,7 @@ use km_api_sys::{
         PREG_POST_OPERATION_INFORMATION, PREG_SET_VALUE_KEY_INFORMATION,
     },
 };
+use log::LevelFilter;
 use winapi::km::wdm::DEVICE_FLAGS::DO_DIRECT_IO;
 
 use crate::{cleaner::Cleaner, item::ItemInfo};
@@ -71,14 +72,15 @@ pub unsafe extern "system" fn DriverEntry(
     driver: &mut DRIVER_OBJECT,
     _path: *const UNICODE_STRING,
 ) -> NTSTATUS {
-    kernel_print::kernel_println!("START");
+    KernelLogger::init(LevelFilter::Info).expect("Failed to initialize logger");
+    log::info!("START");
 
     G_MUTEX.Init();
 
     let mut events = VecDeque::new();
 
     if let Err(e) = events.try_reserve_exact(MAX_ITEM_COUNT) {
-        kernel_print::kernel_println!(
+        log::info!(
             "fail to reserve a {} bytes of memory. Err: {:?}",
             ::core::mem::size_of::<ItemInfo>() * MAX_ITEM_COUNT,
             e
@@ -100,7 +102,7 @@ pub unsafe extern "system" fn DriverEntry(
     let mut status = STATUS_SUCCESS;
 
     let hello_world = UNICODE_STRING::create("Hello World!");
-    kernel_print::kernel_println!("{}", hello_world.as_rust_string());
+    log::info!("{}", hello_world.as_rust_string());
 
     let dev_name = UNICODE_STRING::from(DEVICE_NAME);
     let sym_link = UNICODE_STRING::from(SYM_LINK_NAME);
@@ -123,7 +125,7 @@ pub unsafe extern "system" fn DriverEntry(
         if NT_SUCCESS!(status) {
             cleaner.init_device(device_object);
         } else {
-            kernel_print::kernel_println!("failed to create device 0x{:08x}", status);
+            log::info!("failed to create device 0x{:08x}", status);
             break;
         }
 
@@ -135,7 +137,7 @@ pub unsafe extern "system" fn DriverEntry(
         if NT_SUCCESS!(status) {
             cleaner.init_symlink(&sym_link);
         } else {
-            kernel_print::kernel_println!("failed to create sym_link 0x{:08x}", status);
+            log::info!("failed to create sym_link 0x{:08x}", status);
             break;
         }
 
@@ -145,7 +147,7 @@ pub unsafe extern "system" fn DriverEntry(
         if NT_SUCCESS!(status) {
             cleaner.init_process_create_callback(OnProcessNotify);
         } else {
-            kernel_print::kernel_println!(
+            log::info!(
                 "failed to create process nofity rountine 0x{:08x}",
                 status
             );
@@ -158,7 +160,7 @@ pub unsafe extern "system" fn DriverEntry(
         if NT_SUCCESS!(status) {
             cleaner.init_thread_create_callback(OnThreadNotify);
         } else {
-            kernel_print::kernel_println!(
+            log::info!(
                 "failed to create thread nofity rountine 0x{:08x}",
                 status
             );
@@ -171,7 +173,7 @@ pub unsafe extern "system" fn DriverEntry(
         if NT_SUCCESS!(status) {
             cleaner.init_image_load_callback(OnImageLoadNotify);
         } else {
-            kernel_print::kernel_println!("failed to create image load routine 0x{:08x}", status);
+            log::info!("failed to create image load routine 0x{:08x}", status);
             break;
         }
 
@@ -189,14 +191,14 @@ pub unsafe extern "system" fn DriverEntry(
         if NT_SUCCESS!(status) {
             cleaner.init_registry_callback(G_COOKIE);
         } else {
-            kernel_print::kernel_println!("failed to create registry routine 0x{:08x}", status);
+            log::info!("failed to create registry routine 0x{:08x}", status);
             break;
         }
         break;
     }
 
     if NT_SUCCESS!(status) {
-        kernel_print::kernel_println!("SUCCESS");
+        log::info!("SUCCESS");
     } else {
         cleaner.clean();
     }
@@ -205,7 +207,7 @@ pub unsafe extern "system" fn DriverEntry(
 }
 
 extern "system" fn DriverUnload(driver: &mut DRIVER_OBJECT) {
-    kernel_print::kernel_println!("rust_unload");
+    log::info!("rust_unload");
     unsafe {
         IoDeleteDevice(driver.DeviceObject);
 
@@ -232,7 +234,7 @@ extern "system" fn DispatchDeviceControl(_driver: &mut DEVICE_OBJECT, irp: &mut 
         let device_io = (*stack).Parameters.DeviceIoControl();
 
         match device_io.IoControlCode {
-            ioctl_code::IOCTL_REQUEST => kernel_print::kernel_println!("device control success"),
+            ioctl_code::IOCTL_REQUEST => log::info!("device control success"),
             _ => {
                 return complete_irp_with_status(irp, STATUS_INVALID_DEVICE_REQUEST);
             },
@@ -243,17 +245,17 @@ extern "system" fn DispatchDeviceControl(_driver: &mut DEVICE_OBJECT, irp: &mut 
 }
 
 extern "system" fn DispatchRead(_driver: &mut DEVICE_OBJECT, irp: &mut IRP) -> NTSTATUS {
-    kernel_print::kernel_println!("DispatchRead begin");
+    log::info!("DispatchRead begin");
 
     unsafe {
         let stack = IoGetCurrentIrpStackLocation(irp);
         let parameters_read = (*stack).ParametersRead();
         let len = parameters_read.Length;
 
-        kernel_print::kernel_println!("read len: {}", len);
+        log::info!("read len: {}", len);
 
         if len == 0 {
-            kernel_print::kernel_println!("len is zero");
+            log::info!("len is zero");
             return complete_irp_with_status(irp, STATUS_INVALID_BUFFER_SIZE);
         }
 
@@ -262,7 +264,7 @@ extern "system" fn DispatchRead(_driver: &mut DEVICE_OBJECT, irp: &mut IRP) -> N
             16, /*NormalPagePriority*/
         );
         if buffer.is_null() {
-            kernel_print::kernel_println!("buffer is null");
+            log::info!("buffer is null");
             return complete_irp_with_status(irp, STATUS_INSUFFICIENT_RESOURCES);
         }
 
@@ -270,7 +272,7 @@ extern "system" fn DispatchRead(_driver: &mut DEVICE_OBJECT, irp: &mut IRP) -> N
         for i in 0..len {
             *buffer.offset(i as isize) = 5;
         }
-        kernel_print::kernel_println!("DispatchRead success");
+        log::info!("DispatchRead success");
 
         print_items();
 
@@ -285,7 +287,7 @@ pub fn ParametersWrite(stack_loc: &mut IO_STACK_LOCATION) -> &mut _IO_STACK_LOCA
 }
 
 extern "system" fn DispatchWrite(_driver: &mut DEVICE_OBJECT, irp: &mut IRP) -> NTSTATUS {
-    kernel_print::kernel_println!("DispatchWrite begin");
+    log::info!("DispatchWrite begin");
 
     unsafe {
         let stack = IoGetCurrentIrpStackLocation(irp);
@@ -314,7 +316,7 @@ extern "system" fn OnProcessNotify(
     create_info: PPS_CREATE_NOTIFY_INFO,
 ) {
     unsafe {
-        kernel_print!("process create");
+        //kernel_print!("process create");
 
         let item = if !create_info.is_null() {
             let create_info: &PS_CREATE_NOTIFY_INFO = &*create_info;
@@ -338,7 +340,7 @@ extern "system" fn OnProcessNotify(
 
 extern "system" fn OnThreadNotify(process_id: HANDLE, thread_id: HANDLE, create: BOOLEAN) {
     unsafe {
-        kernel_print!("thread create");
+        //kernel_print!("thread create");
 
         let item = if create == TRUE {
             ThreadCreate {
@@ -367,7 +369,7 @@ extern "system" fn OnImageLoadNotify(
     }
 
     unsafe {
-        kernel_print!("image load");
+        //kernel_print!("image load");
 
         let image_name = if full_image_name.is_null() {
             "(unknown)".to_string()
@@ -390,7 +392,7 @@ extern "system" fn OnImageLoadNotify(
 extern "system" fn OnRegistryNotify(_context: PVOID, arg1: PVOID, arg2: PVOID) -> NTSTATUS {
     let reg_notify = HandleToU32!(arg1);
     if reg_notify == REG_NT_POST_SET_VALUE_KEY {
-        kernel_print!("RegNtPostSetValueKey");
+        //kernel_print!("RegNtPostSetValueKey");
         unsafe {
             let op_info = &*(arg2 as PREG_POST_OPERATION_INFORMATION);
             if !NT_SUCCESS!(op_info.Status) {
@@ -463,7 +465,7 @@ unsafe fn print_items() {
     let _locker = AutoLock::new(&mut G_MUTEX);
     if let Some(events) = &mut G_EVENTS {
         for elem in events {
-            kernel_print!("{:?}", elem);
+            log::info!("{:?}", elem);
         }
     }
 }

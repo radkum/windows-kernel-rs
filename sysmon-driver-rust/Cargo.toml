@@ -9,12 +9,13 @@ path = "src/lib.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-kernel-print    = "~0.1"
+kernel-log    = "~0.1"
 km-api-sys       = { path = "../km-api-sys"}
 kernel-string   = { path = "../kernel-string"}
 kernel-macros   = { path = "../kernel-macros"}
 kernel-fast-mutex   = { path = "../kernel-fast-mutex"}
 kernel-init = { path = "../kernel-init"}
+log = "0.4.20"
 
 [dependencies.winapi]
 git = "https://github.com/Trantect/winapi-rs.git"
@@ -26,4 +27,3 @@ features = [
 
 [build-dependencies]
 winreg = "0.7.0"
-failure = "0.1.8"
