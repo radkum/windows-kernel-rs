@@ -1,13 +1,18 @@
-use std::env::var;
-use std::path::{Path, PathBuf};
-use winreg::enums::HKEY_LOCAL_MACHINE;
-use winreg::RegKey;
+use std::{
+    env::var,
+    path::{Path, PathBuf},
+};
+use winreg::{enums::HKEY_LOCAL_MACHINE, RegKey};
 
 /// `C:\Program Files (x86)\Windows Kits\10`.
 fn read_kits_path() -> PathBuf {
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
     let key = r"SOFTWARE\Microsoft\Windows Kits\Installed Roots";
-    let dir: String = hklm.open_subkey(key).unwrap().get_value("KitsRoot10").unwrap();
+    let dir: String = hklm
+        .open_subkey(key)
+        .unwrap()
+        .get_value("KitsRoot10")
+        .unwrap();
 
     dir.into()
 }
@@ -41,9 +46,9 @@ fn get_target_architecture() -> String {
         "x86"
     } else {
         panic!("Only support x86_64 and i686!")
-    }.to_string()
+    }
+    .to_string()
 }
-
 
 fn get_kernel_library_dir() -> PathBuf {
     let windows_kits_dir = read_kits_path();
@@ -54,7 +59,6 @@ fn get_kernel_library_dir() -> PathBuf {
 }
 
 fn main() {
-
     let km_dir = get_kernel_library_dir();
     println!(
         "cargo:rustc-link-search=native={}",

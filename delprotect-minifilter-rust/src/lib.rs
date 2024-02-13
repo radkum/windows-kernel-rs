@@ -15,7 +15,6 @@ use kernel_fast_mutex::{auto_lock::AutoLock, fast_mutex::FastMutex, locker::Lock
 use kernel_init;
 use kernel_macros::{NT_SUCCESS, PAGED_CODE};
 
-use kernel_init::kernel_alloc::POOL_TAG;
 use kernel_string::{PUNICODE_STRING, UNICODE_STRING};
 use km_api_sys::{
     flt_kernel::*,
@@ -31,6 +30,8 @@ use winapi::{
         ntstatus::{STATUS_ACCESS_DENIED, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS},
     },
 };
+use kernel_log::KernelLogger;
+use log::LevelFilter;
 
 use crate::cleaner::Cleaner;
 use winapi::{
@@ -39,11 +40,10 @@ use winapi::{
         IoDeleteSymbolicLink, IoGetCurrentIrpStackLocation, DEVICE_OBJECT, IRP, IRP_MJ,
         PDEVICE_OBJECT,
     },
-    shared::ntstatus::{
-        STATUS_INVALID_DEVICE_REQUEST, STATUS_INVALID_PARAMETER, STATUS_TOO_MANY_NAMES,
-    },
+    shared::ntstatus::{STATUS_INVALID_DEVICE_REQUEST, STATUS_INVALID_PARAMETER},
 };
 
+const POOL_TAG: u32 = u32::from_ne_bytes(*b"RDER");
 const MAX_ITEM_COUNT: usize = 32;
 
 const DEVICE_NAME: &str = "\\Device\\DelProtect";
@@ -94,10 +94,12 @@ pub unsafe extern "system" fn DriverEntry(
     driver: &mut DRIVER_OBJECT,
     _path: *const UNICODE_STRING,
 ) -> NTSTATUS {
-    kernel_print::kernel_println!("START DelProtect");
+    KernelLogger::init(LevelFilter::Info).expect("Failed to initialize logger");
+    
+    log::info!("START DelProtect");
 
     let hello_world = UNICODE_STRING::create("Hello World!");
-    kernel_print::kernel_println!("{}", hello_world.as_rust_string());
+    log::info!("{}", hello_world.as_rust_string());
 
     //--------------------GLOBALS-----------------------
     G_MUTEX.Init();
@@ -105,7 +107,7 @@ pub unsafe extern "system" fn DriverEntry(
     //init processes vector
     let mut events = VecDeque::new();
     if let Err(e) = events.try_reserve_exact(MAX_ITEM_COUNT) {
-        kernel_print::kernel_println!(
+        log::info!(
             "fail to reserve a {} bytes of memory. Err: {:?}",
             ::core::mem::size_of::<String>() * MAX_ITEM_COUNT,
             e
@@ -114,8 +116,8 @@ pub unsafe extern "system" fn DriverEntry(
     }
     G_PROCESS_NAMES = Some(events);
 
-
     //--------------------INIT VARIABLES-----------------------
+    #[allow(unused_assignments)]
     let mut status = STATUS_SUCCESS;
 
     let dev_name = UNICODE_STRING::from(DEVICE_NAME);
@@ -139,7 +141,7 @@ pub unsafe extern "system" fn DriverEntry(
         if NT_SUCCESS!(status) {
             cleaner.init_device(device_object);
         } else {
-            kernel_print::kernel_println!("failed to create device 0x{:08x}", status);
+            log::info!("failed to create device 0x{:08x}", status);
             break;
         }
 
@@ -149,7 +151,7 @@ pub unsafe extern "system" fn DriverEntry(
         if NT_SUCCESS!(status) {
             cleaner.init_symlink(&sym_link);
         } else {
-            kernel_print::kernel_println!("failed to create sym_link 0x{:08x}", status);
+            log::info!("failed to create sym_link 0x{:08x}", status);
             break;
         }
 
@@ -159,7 +161,7 @@ pub unsafe extern "system" fn DriverEntry(
         if NT_SUCCESS!(status) {
             cleaner.init_filter_handle(G_FILTER_HANDLE);
         } else {
-            kernel_print::kernel_println!("failed to create sym_link 0x{:08x}", status);
+            log::info!("failed to create sym_link 0x{:08x}", status);
             break;
         }
 
@@ -174,17 +176,17 @@ pub unsafe extern "system" fn DriverEntry(
     }
 
     if NT_SUCCESS!(status) {
-        kernel_print::kernel_println!("SUCCESS");
+        log::info!("SUCCESS");
     } else {
         cleaner.clean();
     }
 
-    kernel_print::kernel_println!("SUCCESS: {}", status);
+    log::info!("SUCCESS: {}", status);
     status
 }
 
 extern "system" fn DelProtectUnload(_flags: FLT_REGISTRATION_FLAGS) -> NTSTATUS {
-    kernel_print::kernel_println!("delprotect_unload");
+    log::info!("delprotect_unload");
 
     PAGED_CODE!();
     unsafe {
@@ -201,7 +203,7 @@ extern "system" fn DelProtectInstanceSetup(
     _volume_device_type: DEVICE_TYPE,
     _volume_filesystem_type: FLT_FILESYSTEM_TYPE,
 ) -> NTSTATUS {
-    //kernel_print::kernel_println!("DelProtectInstanceSetup");
+    //log::info!("DelProtectInstanceSetup");
     PAGED_CODE!();
     STATUS_SUCCESS
 }
@@ -211,13 +213,13 @@ extern "system" fn DelProtectInstanceQueryTeardown(
     _flt_objects: PFLT_RELATED_OBJECTS,
     _flags: FLT_INSTANCE_QUERY_TEARDOWN_FLAGS,
 ) -> NTSTATUS {
-    //kernel_print::kernel_println!("DelProtectInstanceQueryTeardown");
+    //log::info!("DelProtectInstanceQueryTeardown");
 
     PAGED_CODE!();
     unsafe {
         FltUnregisterFilter(G_FILTER_HANDLE);
     }
-    //kernel_print::kernel_println!("DelProtectInstanceQueryTeardown SUCCESS");
+    //log::info!("DelProtectInstanceQueryTeardown SUCCESS");
     STATUS_SUCCESS
 }
 
@@ -226,10 +228,10 @@ extern "system" fn DelProtectInstanceTeardownStart(
     _flt_objects: PFLT_RELATED_OBJECTS,
     _flags: FLT_INSTANCE_TEARDOWN_FLAGS,
 ) -> NTSTATUS {
-    //kernel_print::kernel_println!("DelProtectInstanceTeardownStart");
+    //log::info!("DelProtectInstanceTeardownStart");
 
     PAGED_CODE!();
-    //kernel_print::kernel_println!("DelProtectInstanceTeardownStart SUCCESS");
+    //log::info!("DelProtectInstanceTeardownStart SUCCESS");
     STATUS_SUCCESS
 }
 
@@ -238,10 +240,10 @@ extern "system" fn DelProtectInstanceTeardownComplete(
     _flt_objects: PFLT_RELATED_OBJECTS,
     _flags: FLT_INSTANCE_TEARDOWN_FLAGS,
 ) -> NTSTATUS {
-    //kernel_print::kernel_println!("DelProtectInstanceTeardownComplete");
+    //log::info!("DelProtectInstanceTeardownComplete");
 
     PAGED_CODE!();
-    //kernel_print::kernel_println!("DelProtectInstanceTeardownComplete SUCCESS");
+    //log::info!("DelProtectInstanceTeardownComplete SUCCESS");
     STATUS_SUCCESS
 }
 
@@ -259,17 +261,17 @@ extern "system" fn DelProtectPreCreate(
     if let KPROCESSOR_MODE::KernelMode = data.RequestorMode {
         return status;
     }
-    //kernel_print::kernel_println!("DelProtectPreCreate not in kernel");
+    //log::info!("DelProtectPreCreate not in kernel");
 
     unsafe {
         let params = &(*data.Iopb).Parameters.Create;
 
         if (params.Options & FILE_DELETE_ON_CLOSE) > 0 {
-            kernel_print::kernel_println!("Delete on close");
+            log::info!("Delete on close");
             if !IsDeleteAllowed(NtCurrentProcess()) {
                 *data.IoStatus.__bindgen_anon_1.Status_mut() = STATUS_ACCESS_DENIED;
                 status = FLT_PREOP_CALLBACK_STATUS::FLT_PREOP_COMPLETE;
-                kernel_print::kernel_println!("Prevent delete by cmd.exe");
+                log::info!("Prevent delete by cmd.exe");
             }
         }
     }
@@ -282,7 +284,7 @@ extern "system" fn DelProtectPreSetInformation(
     _flt_objects: PFLT_RELATED_OBJECTS,
     _reserved: *mut PVOID,
 ) -> FLT_PREOP_CALLBACK_STATUS {
-    //kernel_print::kernel_println!("DelProtectPreSetInformation");
+    log::info!("DelProtectPreSetInformation");
     let mut status = FLT_PREOP_CALLBACK_STATUS::FLT_PREOP_SUCCESS_NO_CALLBACK;
 
     let params = unsafe { &(*data.Iopb).Parameters.SetFileInformation };
@@ -322,7 +324,7 @@ extern "system" fn DelProtectPreSetInformation(
         if !IsDeleteAllowed(h_process) {
             *data.IoStatus.__bindgen_anon_1.Status_mut() = STATUS_ACCESS_DENIED;
             status = FLT_PREOP_CALLBACK_STATUS::FLT_PREOP_COMPLETE;
-            kernel_print::kernel_println!("Prevent delete by cmd.exe");
+            log::info!("Prevent delete by cmd.exe");
         }
         ZwClose(h_process);
     }
@@ -335,7 +337,7 @@ unsafe fn IsDeleteAllowed(h_process: HANDLE) -> bool {
         ExAllocatePool2(POOL_FLAG_PAGED, process_name_size, POOL_TAG) as PUNICODE_STRING;
 
     if process_name.is_null() {
-        kernel_print::kernel_println!("fail to reserve a {} bytes of memory", process_name_size);
+        log::info!("fail to reserve a {} bytes of memory", process_name_size);
         return true;
     }
 
@@ -349,7 +351,7 @@ unsafe fn IsDeleteAllowed(h_process: HANDLE) -> bool {
         &mut return_length,
     );
 
-    kernel_print::kernel_println!(
+    log::info!(
         "ZwQueryInformationProcess - status: {}, returnLength: {}",
         status,
         return_length
@@ -358,17 +360,20 @@ unsafe fn IsDeleteAllowed(h_process: HANDLE) -> bool {
     if NT_SUCCESS!(status) {
         let process_name = &*process_name;
         let rust_process_name = process_name.as_rust_string();
-        kernel_print::kernel_println!("Delete operation from {}", rust_process_name);
+        log::info!("Delete operation from {}", rust_process_name);
 
         if process_name.Length != 0 {
             let _locker = AutoLock::new(&mut G_MUTEX);
             if let Some(process_names) = &G_PROCESS_NAMES {
                 for name in process_names {
-                    kernel_print::kernel_println!("process_names {:?}", name.as_bytes());
-                    kernel_print::kernel_println!("rust_process_name {:?}", rust_process_name.as_bytes());
+                    log::info!("process_names {:?}", name.as_bytes());
+                    log::info!(
+                        "rust_process_name {:?}",
+                        rust_process_name.as_bytes()
+                    );
                     if rust_process_name.contains(name) {
                         delete_allowed = false;
-                        kernel_print::kernel_println!("DELETE BLOCK ");
+                        log::info!("DELETE BLOCK ");
                         break;
                     }
                 }
@@ -385,7 +390,7 @@ unsafe fn IsDeleteAllowed(h_process: HANDLE) -> bool {
                     Dispatch  routines.
 *************************************************************************/
 extern "system" fn DelProtectUnloadDriver(driver: &mut DRIVER_OBJECT) {
-    kernel_print::kernel_println!("rust_unload");
+    log::info!("rust_unload");
     unsafe {
         IoDeleteDevice(driver.DeviceObject);
 
@@ -403,17 +408,17 @@ extern "system" fn DispatchDeviceControl(_driver: &mut DEVICE_OBJECT, irp: &mut 
         let stack = IoGetCurrentIrpStackLocation(irp);
         let device_io = (*stack).Parameters.DeviceIoControl();
 
-        kernel_print::kernel_println!("device_io.IoControlCode: {} ", device_io.IoControlCode);
+        log::info!("device_io.IoControlCode: {} ", device_io.IoControlCode);
         match device_io.IoControlCode {
             ioctl_code::IOCTL_DELPROTECT_ADD_EXE => {
-                kernel_print::kernel_println!("IOCTL_DELPROTECT_ADD_EXE ");
+                log::info!("IOCTL_DELPROTECT_ADD_EXE ");
                 let name: *mut u16 = *irp.AssociatedIrp.SystemBuffer() as PVOID as *mut u16;
                 if name.is_null() {
                     return STATUS_INVALID_PARAMETER;
                 }
 
                 let name_len_in_bytes = device_io.InputBufferLength as usize;
-                let name_len  =  {
+                let name_len = {
                     let name_len = name_len_in_bytes / ::core::mem::size_of::<u16>();
 
                     if *name.offset(name_len as isize - 1) == 0 {
@@ -423,28 +428,25 @@ extern "system" fn DispatchDeviceControl(_driver: &mut DEVICE_OBJECT, irp: &mut 
                     }
                 };
 
-                let buffer = core::slice::from_raw_parts::<u16>(
-                    name,
-                    name_len,
-                );
+                let buffer = core::slice::from_raw_parts::<u16>(name, name_len);
                 let proc_name = String::from_utf16_lossy(buffer);
 
-                kernel_print::kernel_println!("proc_name: {}", proc_name);
+                log::info!("proc_name: {}", proc_name);
 
                 push_item_thread_safe(&proc_name);
             },
             ioctl_code::IOCTL_DELPROTECT_CLEAR => {
-                kernel_print::kernel_println!("before lock ");
+                log::info!("before lock ");
                 let _locker = AutoLock::new(&mut G_MUTEX);
-                kernel_print::kernel_println!("after lock");
+                log::info!("after lock");
                 if let Some(events) = &mut G_PROCESS_NAMES {
-                    kernel_print::kernel_println!("before clear ");
+                    log::info!("before clear ");
                     events.clear();
-                    kernel_print::kernel_println!("after clear ");
+                    log::info!("after clear ");
                 }
             },
             _ => {
-                kernel_print::kernel_println!("IOCTL_ other ");
+                log::info!("IOCTL_ other ");
                 return complete_irp_with_status(irp, STATUS_INVALID_DEVICE_REQUEST);
             },
         }
@@ -481,7 +483,7 @@ fn complete_irp(irp: &mut IRP, status: NTSTATUS, info: usize) -> NTSTATUS {
 unsafe fn push_item_thread_safe(process_name: &str) {
     let mut p_name = String::new();
     if let Err(e) = p_name.try_reserve_exact(process_name.len()) {
-        kernel_print::kernel_println!(
+        log::info!(
             "fail to reserve a {} bytes of memory. Err: {:?}",
             process_name.len(),
             e

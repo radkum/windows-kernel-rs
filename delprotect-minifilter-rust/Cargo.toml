@@ -9,7 +9,8 @@ path = "src/lib.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-kernel-print    = "~0.1"
+log = "0.4.20"
+kernel-log    = "0.1.2"
 km-api-sys       = { path = "../km-api-sys"}
 kernel-string   = { path = "../kernel-string"}
 kernel-macros   = { path = "../kernel-macros"}
@@ -26,4 +27,3 @@ features = [
 
 [build-dependencies]
 winreg = "0.7.0"
-failure = "0.1.8"
