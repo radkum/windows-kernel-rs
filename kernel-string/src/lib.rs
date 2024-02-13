@@ -94,6 +94,10 @@ impl UNICODE_STRING {
     pub fn as_ptr(&self) -> *const ntdef::UNICODE_STRING {
         self as *const Self as *const ntdef::UNICODE_STRING
     }
+
+    pub fn as_mut_ptr(&mut self) -> *mut ntdef::UNICODE_STRING {
+        self as *mut Self as *mut ntdef::UNICODE_STRING
+    }
 }
 
 impl From<ntdef::UNICODE_STRING> for UNICODE_STRING {
