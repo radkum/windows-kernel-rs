@@ -12,6 +12,7 @@ BUILD_FLAGS = "--release"
 
 [tasks.build-driver]
 script = [
+    "cargo clean",
     "cargo b %BUILD_FLAGS%"
 ]
 

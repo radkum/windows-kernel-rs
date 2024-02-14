@@ -2,11 +2,10 @@
 //
 // }
 
-use alloc::collections::BTreeSet;
 use crate::{G_MUTEX, G_PROCESS_NAMES, POOL_TAG};
+use alloc::collections::BTreeSet;
 use core::ptr::{addr_of_mut, null_mut};
-use kernel_fast_mutex::auto_lock::AutoLock;
-use kernel_fast_mutex::fast_mutex::FastMutex;
+use kernel_fast_mutex::{auto_lock::AutoLock, fast_mutex::FastMutex};
 use kernel_macros::NT_SUCCESS;
 use kernel_string::PUNICODE_STRING;
 use km_api_sys::{
@@ -19,6 +18,7 @@ use km_api_sys::{
 use winapi::km::wdm::KPROCESSOR_MODE;
 
 use winapi::shared::ntdef::{HANDLE, NTSTATUS, OBJ_KERNEL_HANDLE, PVOID, ULONG};
+use winapi::shared::ntstatus::STATUS_INFO_LENGTH_MISMATCH;
 
 pub(crate) struct FileMonitor {}
 impl FileMonitor {
@@ -34,7 +34,7 @@ impl FileMonitor {
         let status = FLT_PREOP_CALLBACK_STATUS::FLT_PREOP_SUCCESS_NO_CALLBACK;
 
         if let KPROCESSOR_MODE::KernelMode = data.RequestorMode {
-            log::info!("RamonPreCreate kernel request")
+            //log::info!("RamonPreCreate kernel request")
         }
 
         FileMonitor::ProcessFileEvent(NtCurrentProcess());
@@ -47,7 +47,7 @@ impl FileMonitor {
         _flt_objects: PFLT_RELATED_OBJECTS,
         _reserved: *mut PVOID,
     ) -> FLT_PREOP_CALLBACK_STATUS {
-        log::info!("RamonPreSetInformation");
+        //log::info!("RamonPreSetInformation");
         let status = FLT_PREOP_CALLBACK_STATUS::FLT_PREOP_SUCCESS_NO_CALLBACK;
 
         unsafe {
@@ -101,15 +101,21 @@ impl FileMonitor {
             )
         };
 
+        if status == STATUS_INFO_LENGTH_MISMATCH {
+            //too small buffer
+            unsafe { ExFreePoolWithTag(process_name as PVOID, POOL_TAG) };
+            return;
+        }
+
         //prevent spam
         unsafe {
-            log::info!("Before lock. Len: {}", return_length);
+            //log::info!("Before lock. Len: {}", return_length);
             let _locker = AutoLock::new(&mut G_MUTEX);
             if let Some(process_names) = &mut G_PROCESS_NAMES {
                 if process_names.contains(&return_length) {
                     return;
                 }
-                process_names.insert(return_length);
+                process_names.push_back(return_length);
             }
 
         }
