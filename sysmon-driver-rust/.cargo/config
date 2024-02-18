@@ -12,7 +12,6 @@ rustflags = [
     "-Z", "pre-link-arg=/DRIVER",
     "-Z", "pre-link-arg=/DYNAMICBASE",
     "-Z", "pre-link-arg=/MANIFEST:NO",
-    "-Z", "pre-link-arg=/PDBALTPATH:none",
     "-Z", "panic_abort_tests",
 
     # Post Link Args
