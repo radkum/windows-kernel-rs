@@ -40,7 +40,13 @@ impl LARGE_INTEGER {
     pub const fn new() -> Self {
         Self { QuadPart: 0 }
     }
+
+    pub const fn new_from_i64(time: i64) -> Self {
+        Self { QuadPart: time }
+    }
 }
+
+pub type PLARGE_INTEGER = *mut LARGE_INTEGER;
 
 pub use crate::constants::*;
 use kernel_string::{PUNICODE_STRING, UNICODE_STRING};

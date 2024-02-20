@@ -1,5 +1,6 @@
 //source idea: https://os.phil-opp.com/minimal-rust-kernel/
 #![no_std]
+#![allow(internal_features)]
 #![feature(lang_items)]
 #![feature(alloc_error_handler)]
 

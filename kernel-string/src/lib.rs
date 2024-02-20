@@ -58,6 +58,7 @@ impl Default for ANSI_STRING {
     }
 }
 
+#[derive(Debug)]
 #[repr(C)]
 pub struct UNICODE_STRING {
     pub Length: u16,
@@ -80,14 +81,17 @@ impl UNICODE_STRING {
         }
     }
 
-    pub fn as_rust_string(&self) -> String {
+    pub fn as_rust_string(&self) -> Option<String> {
         unsafe {
-            let ar = ::core::slice::from_raw_parts(self.ptr, self.Length as usize / 2);
-            if let Ok(s) = String::from_utf16(ar) {
-                s
-            } else {
-                String::new()
+            if !self.ptr.is_null()
+            /*&& self.ptr.is_aligned() //unstable */
+            {
+                let ar = ::core::slice::from_raw_parts(self.ptr, self.Length as usize / 2);
+                if let Ok(s) = String::from_utf16(ar) {
+                    return Some(s);
+                }
             }
+            None
         }
     }
 
@@ -99,6 +103,12 @@ impl UNICODE_STRING {
         self as *mut Self as *mut ntdef::UNICODE_STRING
     }
 }
+
+// impl core::fmt::Debug for UNICODE_STRING {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+//         write!(f, "UNICODE_STRING {{ ptr: {}, Length: {}, MaximumLength: {} }}", self.ptr, self.Length, self.MaximumLength);
+//     }
+// }
 
 impl From<ntdef::UNICODE_STRING> for UNICODE_STRING {
     fn from(unicode: ntdef::UNICODE_STRING) -> Self {
@@ -150,7 +160,11 @@ impl<'a> From<&ANSI_STRING> for UNICODE_STRING {
 
 impl Display for UNICODE_STRING {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.as_rust_string())
+        if let Some(s) = self.as_rust_string() {
+            write!(f, "{}", s)
+        } else {
+            write!(f, "")
+        }
     }
 }
 

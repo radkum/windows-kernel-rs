@@ -26,8 +26,7 @@ macro_rules! HandleToU32 {
 macro_rules! PAGED_CODE {
     () => {
         unsafe {
-            if u64::from(km_api_sys::wmd::KeGetCurrentIrql()) > km_api_sys::wmd::APC_LEVEL
-            {
+            if u64::from(km_api_sys::wmd::KeGetCurrentIrql()) > km_api_sys::wmd::APC_LEVEL {
                 return winapi::shared::ntstatus::STATUS_UNSUCCESSFUL;
             }
         }

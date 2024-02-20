@@ -9,8 +9,17 @@ use winapi::{
     km::wdm::{
         DEVICE_TYPE, IO_STATUS_BLOCK, KPROCESSOR_MODE, PDRIVER_OBJECT, PETHREAD, PFILE_OBJECT,
     },
-    shared::ntdef::{LIST_ENTRY, NTSTATUS, PVOID, UCHAR, ULONG, USHORT},
+    shared::ntdef::{
+        LIST_ENTRY, LONG, NTSTATUS, PBOOLEAN, POBJECT_ATTRIBUTES, PULONG, PVOID, UCHAR, ULONG,
+        USHORT,
+    },
+    um::winnt::{ACCESS_MASK, PSECURITY_DESCRIPTOR},
 };
+
+pub type CONST_PVOID = *const winapi::ctypes::c_void;
+pub type PPSECURITY_DESCRIPTOR = *mut PSECURITY_DESCRIPTOR;
+pub type PPFLT_PORT = *mut PFLT_PORT;
+pub type PPVOID = *mut PVOID;
 
 #[link(name = "fltMgr")]
 extern "system" {
@@ -23,6 +32,44 @@ extern "system" {
     pub fn FltUnregisterFilter(Filter: PFLT_FILTER) -> NTSTATUS;
 
     pub fn FltStartFiltering(Filter: PFLT_FILTER) -> NTSTATUS;
+
+    pub fn FltCreateCommunicationPort(
+        Filter: PFLT_FILTER,
+        ServerPort: &mut PFLT_PORT,
+        ObjectAttributes: POBJECT_ATTRIBUTES,
+        ServerPortCookie: CONST_PVOID,
+        ConnectNotifyCallback: Option<PFLT_CONNECT_NOTIFY>,
+        DisconnectNotifyCallback: Option<PFLT_DISCONNECT_NOTIFY>,
+        MessageNotifyCallback: Option<PFLT_MESSAGE_NOTIFY>,
+        MaxConnections: LONG,
+    ) -> NTSTATUS;
+
+    pub fn FltCloseCommunicationPort(ServerPort: PFLT_PORT) -> NTSTATUS;
+
+    pub fn FltCloseClientPort(Filter: PFLT_FILTER, ClientPort: &PFLT_PORT);
+
+    pub fn FltSendMessage(
+        Filter: PFLT_FILTER,
+        ClientPort: &PFLT_PORT,
+        SenderBuffer: CONST_PVOID,
+        SenderBufferLength: ULONG,
+        ReplyBuffer: PVOID,
+        ReplyLength: PULONG,
+        Timeout: PVOID,
+    ) -> NTSTATUS;
+
+    pub fn FltBuildDefaultSecurityDescriptor(
+        SecurityDescriptor: &mut PSECURITY_DESCRIPTOR,
+        DesiredAccess: ACCESS_MASK,
+    ) -> NTSTATUS;
+
+    pub fn FltFreeSecurityDescriptor(SecurityDescriptor: PSECURITY_DESCRIPTOR);
+
+    pub fn FltIsDirectory(
+        Filter: PFLT_FILTER,
+        Instance: PFLT_INSTANCE,
+        IsDirectory: PBOOLEAN,
+    ) -> NTSTATUS;
 }
 
 pub type FLT_REGISTRATION_FLAGS = ULONG;
@@ -37,6 +84,14 @@ pub struct FLT_FILTER {
     Filler: [u8; 0x120],
 }
 pub type PFLT_FILTER = *mut FLT_FILTER;
+
+pub type PFLT_PORT = PVOID; //*mut FLT_PORT;
+
+#[repr(C)]
+pub struct FILTER_MESSAGE_HEADER {
+    pub ReplyLength: u32,
+    pub MessageId: u64,
+}
 
 pub const FLT_REGISTRATION_VERSION: u16 = 0x0203;
 
@@ -81,13 +136,13 @@ pub enum FLT_POSTOP_CALLBACK_STATUS {
 
 pub type PFLT_PRE_OPERATION_CALLBACK = extern "system" fn(
     Data: &mut FLT_CALLBACK_DATA,
-    FltObjects: PFLT_RELATED_OBJECTS,
+    FltObjects: &mut FLT_RELATED_OBJECTS,
     CompletionContext: *mut PVOID,
 ) -> FLT_PREOP_CALLBACK_STATUS;
 
 pub type PFLT_POST_OPERATION_CALLBACK = extern "system" fn(
     Data: &mut FLT_CALLBACK_DATA,
-    FltObjects: PFLT_RELATED_OBJECTS,
+    FltObjects: &mut FLT_RELATED_OBJECTS,
     CompletionContext: PVOID,
     Flags: FLT_POST_OPERATION_FLAGS,
 ) -> FLT_POSTOP_CALLBACK_STATUS;
@@ -218,7 +273,19 @@ pub type PFLT_CALLBACK_DATA = *mut FLT_CALLBACK_DATA;
 
 const _SIZE_CHECKER2: [u8; 88] = [0; ::core::mem::size_of::<FLT_CALLBACK_DATA>()];
 
-pub type PFLT_RELATED_OBJECTS = PVOID;
+#[repr(C)]
+pub struct FLT_RELATED_OBJECTS {
+    pub Size: USHORT,
+    pub TransactionContext: USHORT,
+    pub Filter: PFLT_FILTER,
+    pub Volume: PVOID,      /*PFLT_VOLUME*/
+    pub Instance: PVOID,    /*PFLT_INSTANCE*/
+    pub FileObject: PVOID,  /*PFILE_OBJECT*/
+    pub Transaction: PVOID, /*PKTRANSACTION*/
+}
+pub type PFLT_RELATED_OBJECTS = *mut FLT_RELATED_OBJECTS;
+
+const _SIZE_CHECKER3: [u8; 48] = [0; ::core::mem::size_of::<FLT_RELATED_OBJECTS>()];
 
 pub type PFLT_FILTER_UNLOAD_CALLBACK =
     extern "system" fn(Flags: FLT_FILTER_UNLOAD_FLAGS) -> NTSTATUS;
@@ -239,4 +306,23 @@ pub type PFLT_INSTANCE_QUERY_TEARDOWN_CALLBACK = extern "system" fn(
 pub type PFLT_INSTANCE_TEARDOWN_CALLBACK = extern "system" fn(
     FltObjects: PFLT_RELATED_OBJECTS,
     Reason: FLT_INSTANCE_TEARDOWN_FLAGS,
+) -> NTSTATUS;
+
+pub type PFLT_CONNECT_NOTIFY = unsafe extern "system" fn(
+    ClientPort: PFLT_PORT,
+    ServerPortCookie: PVOID,
+    ConnectionContext: PVOID,
+    SizeOfContext: u32,
+    ConnectionPortCookie: PPVOID,
+) -> NTSTATUS;
+
+pub type PFLT_DISCONNECT_NOTIFY = unsafe extern "system" fn(ConnectionCookie: PVOID);
+
+pub type PFLT_MESSAGE_NOTIFY = unsafe extern "system" fn(
+    PortCookie: PVOID,
+    InputBuffer: PVOID,
+    InputBufferLength: ULONG,
+    OutputBuffer: PVOID,
+    OutputBufferLength: ULONG,
+    ReturnOutputBufferLength: PULONG,
 ) -> NTSTATUS;
