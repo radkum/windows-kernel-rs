@@ -16,8 +16,7 @@ use winapi::{
     um::winnt::{ACCESS_MASK, PSECURITY_DESCRIPTOR},
 };
 
-use kernel_string::UNICODE_STRING;
-use kernel_string::PUNICODE_STRING;
+use kernel_string::{PUNICODE_STRING, UNICODE_STRING};
 
 pub type CONST_PVOID = *const winapi::ctypes::c_void;
 pub type PPSECURITY_DESCRIPTOR = *mut PSECURITY_DESCRIPTOR;
@@ -80,25 +79,22 @@ extern "system" {
         FileNameInformation: &mut PFLT_FILE_NAME_INFORMATION,
     ) -> NTSTATUS;
 
-    pub fn FltParseFileNameInformation(
-        FileNameInformation: PFLT_FILE_NAME_INFORMATION,
-    )-> NTSTATUS;
+    pub fn FltParseFileNameInformation(FileNameInformation: PFLT_FILE_NAME_INFORMATION)
+        -> NTSTATUS;
 
-    pub fn FltReleaseFileNameInformation(
-        FileNameInformation: PFLT_FILE_NAME_INFORMATION,
-    );
+    pub fn FltReleaseFileNameInformation(FileNameInformation: PFLT_FILE_NAME_INFORMATION);
 
     pub fn FltGetVolumeFromFileObject(
         Filter: PFLT_FILTER,
         FileObject: PFILE_OBJECT,
         RetVolume: &mut PFLT_VOLUME,
-    )-> NTSTATUS;
+    ) -> NTSTATUS;
 
     pub fn FltGetVolumeGuidName(
         Volume: PFLT_VOLUME,
         VolumeGuidName: PUNICODE_STRING,
         BufferSizeNeeded: &mut ULONG,
-    )-> NTSTATUS;
+    ) -> NTSTATUS;
 }
 
 pub type FLT_REGISTRATION_FLAGS = ULONG;

@@ -69,6 +69,13 @@ pub type PUNICODE_STRING = *mut UNICODE_STRING;
 pub type PCUNICODE_STRING = *const UNICODE_STRING;
 
 impl UNICODE_STRING {
+    //todo: create proper function to alloc custom size
+    pub fn with_buffer_50() -> Self {
+        let buffer = "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\\
+                      0\0\0\0\0\0\0\0\0\0\0\0";
+        UNICODE_STRING::create(buffer)
+    }
+
     pub fn create(buffer: &str) -> Self {
         UNICODE_STRING::from(buffer.as_bytes())
     }
