@@ -27,7 +27,6 @@ extern "system" fn __CxxFrameHandler3(_: *mut u8, _: *mut u8, _: *mut u8, _: *mu
 const BUGCHECK_CODE: u32 = 0xDEAD0000;
 
 #[cfg(not(test))]
-#[cfg_attr(all(target_env = "msvc", feature = "kernel"), link(name = "ntoskrnl"))]
 extern "system" {
     fn KeBugCheckEx(
         BugCheckCode: u32,

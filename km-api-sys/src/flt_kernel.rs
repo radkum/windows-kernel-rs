@@ -17,6 +17,7 @@ use winapi::{
 };
 
 use kernel_string::UNICODE_STRING;
+use kernel_string::PUNICODE_STRING;
 
 pub type CONST_PVOID = *const winapi::ctypes::c_void;
 pub type PPSECURITY_DESCRIPTOR = *mut PSECURITY_DESCRIPTOR;
@@ -78,6 +79,26 @@ extern "system" {
         NameOptions: FLT_FILE_NAME_OPTIONS,
         FileNameInformation: &mut PFLT_FILE_NAME_INFORMATION,
     ) -> NTSTATUS;
+
+    pub fn FltParseFileNameInformation(
+        FileNameInformation: PFLT_FILE_NAME_INFORMATION,
+    )-> NTSTATUS;
+
+    pub fn FltReleaseFileNameInformation(
+        FileNameInformation: PFLT_FILE_NAME_INFORMATION,
+    );
+
+    pub fn FltGetVolumeFromFileObject(
+        Filter: PFLT_FILTER,
+        FileObject: PFILE_OBJECT,
+        RetVolume: &mut PFLT_VOLUME,
+    )-> NTSTATUS;
+
+    pub fn FltGetVolumeGuidName(
+        Volume: PFLT_VOLUME,
+        VolumeGuidName: PUNICODE_STRING,
+        BufferSizeNeeded: &mut ULONG,
+    )-> NTSTATUS;
 }
 
 pub type FLT_REGISTRATION_FLAGS = ULONG;
@@ -286,9 +307,9 @@ pub struct FLT_RELATED_OBJECTS {
     pub Size: USHORT,
     pub TransactionContext: USHORT,
     pub Filter: PFLT_FILTER,
-    pub Volume: PVOID,      /*PFLT_VOLUME*/
-    pub Instance: PVOID,    /*PFLT_INSTANCE*/
-    pub FileObject: PVOID,  /*PFILE_OBJECT*/
+    pub Volume: PFLT_VOLUME,
+    pub Instance: PFLT_INSTANCE,
+    pub FileObject: PFILE_OBJECT,
     pub Transaction: PVOID, /*PKTRANSACTION*/
 }
 pub type PFLT_RELATED_OBJECTS = *mut FLT_RELATED_OBJECTS;
@@ -337,22 +358,22 @@ pub type PFLT_MESSAGE_NOTIFY = unsafe extern "system" fn(
 
 #[repr(C)]
 pub struct FLT_FILE_NAME_INFORMATION {
-    Size: USHORT,
+    pub Size: USHORT,
     NamesParsed: FLT_FILE_NAME_PARSED_FLAGS,
     Format: FLT_FILE_NAME_OPTIONS,
-    Name: UNICODE_STRING,
-    Volume: UNICODE_STRING,
+    pub Name: UNICODE_STRING,
+    pub Volume: UNICODE_STRING,
     Share: UNICODE_STRING,
-    Extension: UNICODE_STRING,
+    pub Extension: UNICODE_STRING,
     Stream: UNICODE_STRING,
     FinalComponent: UNICODE_STRING,
-    ParentDir: UNICODE_STRING,
+    pub ParentDir: UNICODE_STRING,
 }
 
 pub type PFLT_FILE_NAME_INFORMATION = *mut FLT_FILE_NAME_INFORMATION;
 
 #[repr(C)]
-pub struct FLT_FILE_NAME_OPTIONS(ULONG);
+pub struct FLT_FILE_NAME_OPTIONS(pub ULONG);
 
 impl FLT_FILE_NAME_OPTIONS {
     pub const FLT_VALID_FILE_NAME_FORMATS: ULONG = 0x000000ff;
@@ -371,7 +392,7 @@ impl FLT_FILE_NAME_OPTIONS {
 }
 
 #[repr(C)]
-pub struct FLT_FILE_NAME_PARSED_FLAGS(USHORT);
+pub struct FLT_FILE_NAME_PARSED_FLAGS(pub USHORT);
 
 impl FLT_FILE_NAME_PARSED_FLAGS {
     pub const FINAL_COMPONENT: USHORT = 0x0001;
@@ -379,3 +400,5 @@ impl FLT_FILE_NAME_PARSED_FLAGS {
     pub const STREAM: USHORT = 0x0004;
     pub const PARENT_DIR: USHORT = 0x0008;
 }
+
+pub type PFLT_VOLUME = PVOID;
