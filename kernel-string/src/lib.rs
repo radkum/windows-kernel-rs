@@ -3,11 +3,24 @@
 #![allow(non_snake_case)]
 extern crate alloc;
 
-use alloc::string::String;
+use alloc::{string::String, vec::Vec};
 use core::fmt::{Display, Formatter};
 use winapi::shared::ntdef::{self, BOOLEAN, LONG, NTSTATUS, TRUE, ULONG, ULONGLONG};
 type PCSZ = *const u8;
 type PCWSTR = *const u16;
+
+/// Copies `src` and appends a NUL if missing; `None` when the allocation fails.
+fn try_copy_nul_terminated<T: Copy + Default + PartialEq>(src: &[T]) -> Option<Vec<T>> {
+    let nul = T::default();
+    let len = if src.last() == Some(&nul) { src.len() } else { src.len() + 1 };
+    let mut v = Vec::new();
+    v.try_reserve_exact(len).ok()?;
+    for (dst, item) in v.spare_capacity_mut().iter_mut().zip(src.iter().chain([&nul])) {
+        dst.write(*item);
+    }
+    unsafe { v.set_len(len) };
+    Some(v)
+}
 
 #[repr(C)]
 pub struct ANSI_STRING {
@@ -27,11 +40,9 @@ impl<'a> From<&'a [u8]> for ANSI_STRING {
     fn from(buffer: &'a [u8]) -> Self {
         let mut str = ANSI_STRING::default();
 
-        let mut buffer = buffer.to_vec();
-        if *buffer.last().unwrap() != 0 {
-            //let mut buffer = buffer.to_vec();
-            buffer.push(0);
-        }
+        let Some(buffer) = try_copy_nul_terminated(buffer) else {
+            return str;
+        };
 
         unsafe {
             RtlInitAnsiString(&mut str, buffer.as_ptr());
@@ -94,9 +105,23 @@ impl UNICODE_STRING {
             /*&& self.ptr.is_aligned() //unstable */
             {
                 let ar = ::core::slice::from_raw_parts(self.ptr, self.Length as usize / 2);
-                if let Ok(s) = String::from_utf16(ar) {
-                    return Some(s);
+                // String::from_utf16 aborts on OOM; decode twice to allocate the exact size fallibly
+                let mut len = 0;
+                for c in char::decode_utf16(ar.iter().copied()) {
+                    len += c.ok()?.len_utf8();
                 }
+                let mut bytes = Vec::new();
+                bytes.try_reserve_exact(len).ok()?;
+                let spare = bytes.spare_capacity_mut();
+                let mut pos = 0;
+                for c in char::decode_utf16(ar.iter().copied()) {
+                    for b in c.ok()?.encode_utf8(&mut [0u8; 4]).bytes() {
+                        spare[pos].write(b);
+                        pos += 1;
+                    }
+                }
+                bytes.set_len(pos);
+                return Some(String::from_utf8_unchecked(bytes));
             }
             None
         }
@@ -143,10 +168,9 @@ impl<'a> From<&'a [u16]> for UNICODE_STRING {
     fn from(buffer: &'a [u16]) -> Self {
         let mut str = UNICODE_STRING::default();
 
-        let mut buffer = buffer.to_vec();
-        if *buffer.last().unwrap() == 0 {
-            buffer.push(0);
-        }
+        let Some(buffer) = try_copy_nul_terminated(buffer) else {
+            return str;
+        };
 
         unsafe {
             RtlCreateUnicodeString(&mut str, buffer.as_ptr());

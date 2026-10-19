@@ -6,7 +6,6 @@
 
 extern crate alloc;
 
-use alloc::string::ToString;
 use core::{ffi::c_void, panic::PanicInfo};
 
 #[cfg(not(test))]
@@ -40,9 +39,10 @@ extern "system" {
 #[cfg(not(test))]
 /// An unrecoverable error will cause the kernel to crash.
 fn unrecoverable_error(info: &PanicInfo) {
-    let msg = info.to_string();
+    // no allocation here: panics also come from OOM; param 1 is the panic line
+    let line = info.location().map_or(0, |l| l.line());
     unsafe {
-        KeBugCheckEx(BUGCHECK_CODE, msg.as_ptr() as u32, 0, 0, 0);
+        KeBugCheckEx(BUGCHECK_CODE, line, 0, 0, 0);
     }
 }
 

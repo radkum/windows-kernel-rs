@@ -9,6 +9,7 @@ edition = "2021"
 km-api-sys = { path = "../km-api-sys" }
 
 [features]
-default = ["alloc_panic", "paged_pool"]
+# no alloc_panic: GlobalAlloc must return null on failure so try_reserve can report it
+default = ["paged_pool"]
 alloc_panic = []
 paged_pool = []
